@@ -2,7 +2,18 @@
 
 The RNG paper does not provide a public implementation. This repository therefore uses a local implementation on top of official ns-3. The experiment runner downloads the pinned commit `c3b0d18fc6d6e61b0cc792eb45d8fe7a1db78d08` into the ignored `third_party/ns-3-dev` directory on first use.
 
-The Git-tracked simulator implementation is [`simulator/rng-spraypoint.cc`](simulator/rng-spraypoint.cc). The experiment runner links it into ns-3's ignored `scratch/` directory before building.
+The Git-tracked simulator implementation lives in [`simulator/`](simulator/). The experiment runner links that directory into ns-3's ignored `scratch/` directory as `scratch/rng-spraypoint/`, which ns-3 builds as one program, `scratch/rng-spraypoint/main`:
+
+| File | Contents |
+| --- | --- |
+| [`main.cc`](simulator/main.cc) | `main`: command-line options |
+| [`rng-experiment.h`](simulator/rng-experiment.h) / [`.cc`](simulator/rng-experiment.cc) | ns-3 fabric, traffic, packet forwarding, and printed metrics |
+| [`spraypoint.h`](simulator/spraypoint.h) / [`.cc`](simulator/spraypoint.cc) | random regular graph and Spraypoint spray/pointing tables |
+| [`spray-header.h`](simulator/spray-header.h) / [`.cc`](simulator/spray-header.cc) | per-packet routing header |
+| [`max-flow.h`](simulator/max-flow.h) / [`.cc`](simulator/max-flow.cc) | Dinic max flow for edge-disjoint path counts |
+| [`hash.h`](simulator/hash.h) | deterministic hashing for ECMP and seeding |
+
+Exactly one file in `simulator/` may contain a `main(` function; ns-3 uses it to find the program's entry point.
 
 It models the paper's baseline Spraypoint forwarding:
 
@@ -69,7 +80,7 @@ For a non-adjacent source/destination pair, Model 7.1 predicts about `d(1-exp(-h
 The following run completed successfully on this repository:
 
 ```bash
-./ns3 run 'scratch/rng-spraypoint --flows=50000 --samples=500 --seed=561'
+./ns3 run 'scratch/rng-spraypoint/main --flows=50000 --samples=500 --seed=561'
 ```
 
 | Metric | Observed | Paper-model reference |

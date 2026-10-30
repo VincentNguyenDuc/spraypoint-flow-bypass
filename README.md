@@ -17,3 +17,7 @@ make reproduce
 ```
 
 See [REPRODUCING_RNG.md](REPRODUCING_RNG.md) for prerequisites, expected results, technical details, and command-line options.
+
+## Formatting
+
+C++ sources follow ns-3's style, defined in [.clang-format](.clang-format). Run `make format` before committing; it needs clang-format 19 or later.

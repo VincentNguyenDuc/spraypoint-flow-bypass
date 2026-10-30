@@ -14,7 +14,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_NS3_DIR = ROOT / "third_party" / "ns-3-dev"
-SIMULATOR_SOURCE = ROOT / "simulator" / "rng-spraypoint.cc"
+SIMULATOR_DIR = ROOT / "simulator"
+SIMULATOR_MAIN = SIMULATOR_DIR / "main.cc"
+# ns-3 builds every .cc in a scratch/ subdirectory into one program named
+# scratch/<subdirectory>/<file containing main>.
+SCRATCH_NAME = "rng-spraypoint"
+SCRATCH_PROGRAM = f"scratch/{SCRATCH_NAME}/{SIMULATOR_MAIN.stem}"
 NS3_REPOSITORY = "https://gitlab.com/nsnam/ns-3-dev.git"
 # Pinned after verifying the baseline reproduction; do not silently build a
 # later ns-3 tip when a collaborator runs the experiment months from now.
@@ -46,19 +51,25 @@ def clone_ns3(ns3_dir: Path) -> None:
 
 def ensure_scratch_link(ns3_dir: Path) -> None:
     """Expose the Git-tracked model to ns-3's scratch build directory."""
-    scratch_source = ns3_dir / "scratch" / "rng-spraypoint.cc"
-    relative_target = os.path.relpath(SIMULATOR_SOURCE, scratch_source.parent)
+    # Checkouts made before the simulator was split into several files link
+    # the single source file; ns-3 would try to build it as its own program.
+    legacy_source = ns3_dir / "scratch" / f"{SCRATCH_NAME}.cc"
+    if legacy_source.is_symlink():
+        legacy_source.unlink()
 
-    if scratch_source.is_symlink():
-        if scratch_source.resolve() == SIMULATOR_SOURCE.resolve():
+    scratch_dir = ns3_dir / "scratch" / SCRATCH_NAME
+    relative_target = os.path.relpath(SIMULATOR_DIR, scratch_dir.parent)
+
+    if scratch_dir.is_symlink():
+        if scratch_dir.resolve() == SIMULATOR_DIR.resolve():
             return
-        scratch_source.unlink()
-    elif scratch_source.exists():
+        scratch_dir.unlink()
+    elif scratch_dir.exists():
         raise RuntimeError(
-            f"{scratch_source} exists and is not the managed symbolic link; "
+            f"{scratch_dir} exists and is not the managed symbolic link; "
             "move it aside before running this script"
         )
-    scratch_source.symlink_to(relative_target)
+    scratch_dir.symlink_to(relative_target, target_is_directory=True)
 
 
 def parse_result(output: str, seed: int) -> dict[str, str | int | float]:
@@ -128,8 +139,8 @@ def main() -> int:
             raise RuntimeError(f"official ns-3 checkout not found at {ns3_dir}")
         print(f"Cloning pinned ns-3 revision {NS3_REVISION[:12]} ...")
         clone_ns3(ns3_dir)
-    if not SIMULATOR_SOURCE.is_file():
-        raise RuntimeError(f"missing Git-tracked simulator source: {SIMULATOR_SOURCE}")
+    if not SIMULATOR_MAIN.is_file():
+        raise RuntimeError(f"missing Git-tracked simulator source: {SIMULATOR_MAIN}")
 
     ensure_scratch_link(ns3_dir)
     if args.configure or not (ns3_dir / "cmake-cache" / "CMakeCache.txt").is_file():
@@ -159,7 +170,7 @@ def main() -> int:
             [
                 "./ns3",
                 "run",
-                f"scratch/rng-spraypoint --flows={args.flows} --samples={args.samples} --seed={seed}",
+                f"{SCRATCH_PROGRAM} --flows={args.flows} --samples={args.samples} --seed={seed}",
             ],
             ns3_dir,
         )
