@@ -21,6 +21,10 @@ class Spraypoint
     int GetLevels() const;
     uint32_t GetWaypointCount() const;
     uint32_t GetNextHopCount() const;
+    // Level of node relative to destination: 0..ell for waypoint levels WP0..WPell,
+    // ell+1 for the inner ring, ell+2 for the outer ring, and -1 for the destination.
+    int GetLevel(uint32_t destination, uint32_t node) const;
+    const std::vector<uint32_t>& GetPointing(uint32_t destination, uint32_t node) const;
 
     uint32_t SprayHop(uint32_t source, uint32_t destination, uint32_t flow) const;
     uint32_t PointHop(uint32_t current, uint32_t destination, uint32_t flow) const;
@@ -45,6 +49,8 @@ class Spraypoint
     std::vector<std::vector<uint32_t>> m_graph;
     // Indexed as [destination][current router][eligible next hops].
     std::vector<std::vector<std::vector<uint32_t>>> m_pointing;
+    // Indexed as [destination][node], encoded as described for GetLevel.
+    std::vector<std::vector<int8_t>> m_nodeLevel;
 };
 
 } // namespace rng

@@ -13,7 +13,7 @@ The Git-tracked simulator implementation lives in [`simulator/`](simulator/). Th
 | [`max-flow.h`](simulator/max-flow.h) / [`.cc`](simulator/max-flow.cc) | Dinic max flow for edge-disjoint path counts |
 | [`hash.h`](simulator/hash.h) | deterministic hashing for ECMP and seeding |
 
-Exactly one file in `simulator/` may contain a `main(` function; ns-3 uses it to find the program's entry point.
+Exactly one file in `simulator/` may contain a `main(` function; ns-3 uses it to find the program's entry point. The checks against the paper live in [`verification/`](verification/), outside ns-3; see [Verifying against the paper](#verifying-against-the-paper).
 
 It models the paper's baseline Spraypoint forwarding:
 
@@ -73,7 +73,7 @@ With the default `n=1000`, `d=64`, `p=4`, `h=2`, the practical regime has one hi
 | 4 | remaining mass, about `0.679` |
 | 5 | `exp(-p*d^2/n)`, about `7.6e-8` |
 
-For a non-adjacent source/destination pair, Model 7.1 predicts about `d(1-exp(-h)) = 55.3` edge-disjoint paths. The simulator's finite graph and deterministic waypoint/ECMP construction need not exactly equal the asymptotic model, but should be in the same range.
+For a non-adjacent source/destination pair, Model 7.1 gives `d(1-exp(-h)) = 55.3` edge-disjoint paths. The paper derives it from a deliberately simplified Spraypoint graph (App. F), and its own measurement (§9.2) is higher: over 50 paths for almost all pairs and over 60 for half.
 
 ## Observed baseline result
 
@@ -86,15 +86,54 @@ The following run completed successfully on this repository:
 | Metric | Observed | Paper-model reference |
 | --- | ---: | ---: |
 | Delivery / hop-limit drops | `50,000 / 50,000` / `0` | loop-free forwarding expected |
-| 1-hop path fraction | `0.00084` | `0.001` |
-| 2-hop path fraction | `0.06508` | `0.064` |
-| 3-hop path fraction | `0.26044` | `0.256` |
-| 4-hop path fraction | `0.67364` | about `0.679` |
+| 1-hop path fraction | `0.00104` | `0.001` |
+| 2-hop path fraction | `0.0631` | `0.064` |
+| 3-hop path fraction | `0.25406` | `0.256` |
+| 4-hop path fraction | `0.6818` | about `0.679` |
 | 5-hop path fraction | `0` in 50,000 samples | about `7.6e-8` |
-| Non-adjacent edge-disjoint paths | `56.72` mean | `55.34` |
-| Adjacent edge-disjoint paths | `57.74` mean | separate neighboring-source expression in Model 7.1 |
+| Non-adjacent edge-disjoint paths | `59.11` mean | `55.34` (Model 7.1) |
+| Adjacent edge-disjoint paths | `58.16` mean | `54.19` (Model 7.1) |
 
-The observed values reproduce the paper's central routing claims at this scale: almost all baseline paths take 2--4 hops, and the forwarding graph retains roughly 56 edge-disjoint paths for non-adjacent pairs. The uncongested packet-latency p50 and p99 were both 2028 ns because the low-load sample is dominated by 4-hop paths on 500 ns links; this is a simulator sanity result, not an attempt to reproduce the paper's physical-layout latency study.
+The uncongested packet-latency p50 and p99 were both 2028 ns because the low-load sample is dominated by 4-hop paths on 500 ns links; this is a simulator sanity result, not an attempt to reproduce the paper's physical-layout latency study.
+
+Results recorded before the random-graph fix (see below) came from an irregular graph and should not be compared with these.
+
+## Verifying against the paper
+
+The paper's routing benchmarks (§9.1--9.2) are graph and linear-program computations, not packet simulations. `make verify` checks them directly against the routing code, without ns-3:
+
+```bash
+make verify                          # defaults: n=1000, d=64, p=4, h=2, 10 matchings (~2.5 min)
+make verify ARGS="--matchings=0"     # skip oversubscription (~2 s)
+```
+
+It reports:
+
+- **Structure.** The graph is simple, symmetric, and `d`-regular. For every destination, the levels and pointing tables follow the four §5 rules. Pointing is loop-free, and paths have at most `ell+4` hops. The program exits non-zero on any violation.
+- **Path lengths.** The exact distribution over all ordered pairs, spray choices, and ECMP choices, compared with Model 7.2.
+- **Edge-disjoint paths.** The min-cut distribution over sampled pairs, compared with §9.2 and Model 7.1.
+- **Oversubscription.** Results are computed over random ToR matchings in which every ToR sends at full rate (`d` links).
+  - *Optimal split.* This is the paper's multi-commodity-flow LP over Spraypoint paths, solved as a maximum concurrent flow with the Garg–Könemann algorithm. It reports a certified bracket: the upper end comes from a feasible flow, the lower end from LP duality.
+  - *ECMP.* Every hop splits evenly across its ECMP next hops, as hashed packets do in the ns-3 simulator.
+
+Results for seed 561:
+
+| Benchmark | This implementation | Paper |
+| --- | ---: | ---: |
+| Structural violations | 0 | — |
+| Path length 1 / 2 / 3 / 4 / 5 hops | 0.0010 / 0.0631 / 0.2563 / 0.6797 / 0 | Model 7.2: 0.001 / 0.064 / 0.256 / 0.679 / 7.7e-8 |
+| Edge-disjoint paths, non-adjacent: min / p10 / median / p90 | 52 / 57 / 59 / 62 | §9.2: >50 for almost all, >60 for half |
+| Pairs with more than 50 / more than 60 edge-disjoint paths | 100% / 27% | almost all / about 50% |
+| Oversubscription, optimal split (10 matchings, worst) | 3.12--3.30 | §9.1: 3.25 (worst of 100); Model 7.3: 3.27 |
+| Oversubscription, per-hop ECMP split (worst) | 12.0 | not reported |
+
+Three findings matter for later experiments:
+
+1. **Edge-disjoint paths fall slightly short.** The median is 59, against the paper's "over 60". A variant that always keeps the waypoint's selecting node among its `h` next hops raises the median to 60, with 43% of pairs above 60. The paper's text describes a uniform choice instead, so this repository keeps the uniform rule. The remaining gap of one or two paths is within details the paper leaves open, such as its ShuffleBox-constrained graphs.
+2. **The paper's 3.25 assumes an optimal split.** Equal ECMP splitting at every hop gives `r` of about 10--12.
+   - The busiest link is always the direct link of an adjacent source/destination pair. The source `s` is in `WP0(t)`, and about 20 of its neighbors are WP1 waypoints. Each of them picks `s` as a next hop with probability about 2/5, so roughly 16% of the pair's traffic returns through `s` onto the direct link.
+   - Packet-level results with hash-based ECMP will therefore see much less capacity than the paper's headline number. This direct-link hotspot is also the baseline for the bypass hotspot question (H2).
+3. **A fixed random-graph bug changed earlier results.** Until this fix, the random-graph generator popped the wrong element when it recorded a matched pair. Degrees ranged from 50 to 85 instead of 64, and some pairs had more than 64 "edge-disjoint paths". The averages happened to look right, which is why the earlier baseline appeared to match. The constructor now rejects any graph that is not `d`-regular.
 
 ## Scope
 

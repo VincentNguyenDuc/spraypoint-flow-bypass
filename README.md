@@ -16,6 +16,12 @@ For the five-seed baseline sweep, run:
 make reproduce
 ```
 
+To check the routing implementation against the paper's §5 rules and §9 benchmarks (path lengths, edge-disjoint paths, oversubscription) without ns-3, run:
+
+```bash
+make verify
+```
+
 See [REPRODUCING_RNG.md](REPRODUCING_RNG.md) for prerequisites, expected results, technical details, and command-line options.
 
 ## Formatting

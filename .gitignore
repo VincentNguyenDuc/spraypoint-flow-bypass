@@ -1,5 +1,6 @@
 # Locally cloned simulator dependency and generated experiment data.
 third_party/
+build/
 results/*.csv
 __pycache__/
 *.pyc

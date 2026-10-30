@@ -25,7 +25,8 @@ Spraypoint::Spraypoint(uint32_t nodes,
       m_nextHops(nextHops),
       m_seed(seed),
       m_graph(nodes),
-      m_pointing(nodes, std::vector<std::vector<uint32_t>>(nodes))
+      m_pointing(nodes, std::vector<std::vector<uint32_t>>(nodes)),
+      m_nodeLevel(nodes, std::vector<int8_t>(nodes))
 {
     if (nodes <= degree || (nodes * degree) % 2)
     {
@@ -61,6 +62,18 @@ uint32_t
 Spraypoint::GetNextHopCount() const
 {
     return m_nextHops;
+}
+
+int
+Spraypoint::GetLevel(uint32_t destination, uint32_t node) const
+{
+    return m_nodeLevel[destination][node];
+}
+
+const std::vector<uint32_t>&
+Spraypoint::GetPointing(uint32_t destination, uint32_t node) const
+{
+    return m_pointing[destination][node];
 }
 
 uint32_t
@@ -148,9 +161,10 @@ Spraypoint::BuildRandomRegularGraph()
                     break;
                 }
                 const auto b = unmatched[chosen];
-                std::swap(unmatched[chosen], unmatched.back());
-                unmatched.pop_back(); // b
+                // a is last; move b just before it so both can be popped.
+                std::swap(unmatched[chosen], unmatched[unmatched.size() - 2]);
                 unmatched.pop_back(); // a
+                unmatched.pop_back(); // b
                 matching.emplace_back(a, b);
             }
             if (!failed)
@@ -170,6 +184,10 @@ Spraypoint::BuildRandomRegularGraph()
     }
     for (uint32_t node = 0; node < m_nodes; ++node)
     {
+        if (sets[node].size() != m_degree)
+        {
+            throw std::runtime_error("random graph is not d-regular");
+        }
         m_graph[node].assign(sets[node].begin(), sets[node].end());
         std::sort(m_graph[node].begin(), m_graph[node].end());
     }
@@ -308,6 +326,13 @@ Spraypoint::BuildPointingTables()
             }
             m_pointing[destination][node] =
                 Choose(candidates, m_nextHops, destination, node, 100 + level[node]);
+        }
+
+        for (uint32_t node = 0; node < m_nodes; ++node)
+        {
+            const int stored =
+                node == destination ? -1 : (level[node] == -1 ? m_levels + 2 : level[node]);
+            m_nodeLevel[destination][node] = static_cast<int8_t>(stored);
         }
     }
 }

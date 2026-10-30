@@ -15,11 +15,12 @@ Mix(uint64_t x)
     return x ^ (x >> 31);
 }
 
+// Chain the mixes so distinct (a, b, c) never collide by construction; packing
+// them into one word with shifts let b and c overlap.
 inline uint64_t
 Key(uint64_t seed, uint32_t a, uint32_t b, uint32_t c = 0)
 {
-    return Mix(seed ^ (static_cast<uint64_t>(a) << 32) ^ (static_cast<uint64_t>(b) << 1) ^
-               static_cast<uint64_t>(c));
+    return Mix(Mix(Mix(seed ^ a) ^ b) ^ c);
 }
 
 } // namespace rng
