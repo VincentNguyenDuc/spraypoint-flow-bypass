@@ -24,6 +24,7 @@ NS3_REPOSITORY = "https://gitlab.com/nsnam/ns-3-dev.git"
 # Pinned after verifying the baseline reproduction; do not silently build a
 # later ns-3 tip when a collaborator runs the experiment months from now.
 NS3_REVISION = "c3b0d18fc6d6e61b0cc792eb45d8fe7a1db78d08"
+NS3_MODULES = "core;network;point-to-point;internet;applications"
 
 
 def command(args: list[str], cwd: Path) -> str:
@@ -70,6 +71,16 @@ def ensure_scratch_link(ns3_dir: Path) -> None:
             "move it aside before running this script"
         )
     scratch_dir.symlink_to(relative_target, target_is_directory=True)
+
+
+def needs_configure(ns3_dir: Path) -> bool:
+    """Whether ns-3 is unconfigured, or configured without a module we now need."""
+    cache = ns3_dir / "cmake-cache" / "CMakeCache.txt"
+    if not cache.is_file():
+        return True
+    match = re.search(r"^NS3_ENABLED_MODULES:\w+=(.*)$", cache.read_text(), re.MULTILINE)
+    enabled = set(match.group(1).split(";")) if match else set()
+    return not set(NS3_MODULES.split(";")) <= enabled
 
 
 def parse_result(output: str, seed: int) -> dict[str, str | int | float]:
@@ -143,13 +154,13 @@ def main() -> int:
         raise RuntimeError(f"missing Git-tracked simulator source: {SIMULATOR_MAIN}")
 
     ensure_scratch_link(ns3_dir)
-    if args.configure or not (ns3_dir / "cmake-cache" / "CMakeCache.txt").is_file():
+    if args.configure or needs_configure(ns3_dir):
         print("Configuring minimal ns-3 build ...")
         command(
             [
                 "./ns3",
                 "configure",
-                "--enable-modules=core;network;point-to-point",
+                f"--enable-modules={NS3_MODULES}",
                 "--disable-examples",
                 "--disable-python",
                 "--build-profile=release",
