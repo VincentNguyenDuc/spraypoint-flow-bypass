@@ -24,10 +24,12 @@ ctest --test-dir build --output-on-failure
 
 # Add new experiments here.
 step "Experiments"
-experiments/tcp-baseline-smoke.sh
-experiments/tcp-bypass-smoke.sh
-experiments/tcp-baseline-load-sweep.sh
-experiments/tcp-bypass-load-sweep.sh
+experiments/01-smoke-baseline.sh
+experiments/01-smoke-bypass.sh
+experiments/02-small-sweep-baseline.sh
+experiments/02-small-sweep-bypass.sh
+experiments/03-load-sweep-baseline.sh
+experiments/03-load-sweep-bypass.sh
 
 step "Analysis"
 if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then

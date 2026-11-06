@@ -52,13 +52,13 @@ An experiment is a script that says which runs to do. Data moves one way, from s
 
 ```mermaid
 flowchart LR
-    settings["load-sweep-settings.sh<br/>settings shared by sweeps"] --> script
+    settings["NN-*-settings.sh<br/>settings shared by sweeps"] --> script
     common["common.sh<br/>how to run"] --> script
-    script["tcp-*.sh<br/>which runs to do"] -->|"runs the program"| results["results/<br/>one folder per run"]
+    script["NN-*.sh<br/>which runs to do"] -->|"runs the program"| results["results/<br/>one folder per run"]
     results --> analysis["analysis/<br/>notebooks"]
 ```
 
-- **Scripts (`tcp-*.sh`):** each one is a complete, repeatable experiment, named for what it runs: `smoke` is a quick check, and `load-sweep` is the real measurement across loads and seeds. To add an experiment, copy a script and change its settings.
+- **Scripts (`NN-*.sh`):** each one is a complete, repeatable experiment, numbered in the order to run them and named for what it runs: `smoke` is a quick check, `small-sweep` is a fast sweep on a small network, and `load-sweep` is the larger measurement. To add an experiment, copy a script and change its settings.
 - **Shared logic (`common.sh`):** builds the program and runs the simulations, in parallel if asked. It skips finished runs, so an interrupted experiment continues where it stopped.
 - **Results (`results/<script name>/<run name>/`):** each run's data, plus the exact options, commit, and machine that produced it. Git ignores the contents.
 - **Analysis (`analysis/`):** notebooks that read the results, using whichever runs have finished.
@@ -66,4 +66,4 @@ flowchart LR
 
 ## Comparing experiments
 
-The same seed and settings give every program the same topology and the same flows, so differences between runs come from the routing. To keep that true, sweeps that will be compared share their settings, as the load sweeps do through `experiments/load-sweep-settings.sh`. Compare runs from one platform only, because the same seed can give different flows on Mac and Linux.
+The same seed and settings give every program the same topology and the same flows, so differences between runs come from the routing. To keep that true, sweeps that will be compared share their settings, as the load sweeps do through `experiments/03-load-sweep-settings.sh`. Compare runs from one platform only, because the same seed can give different flows on Mac and Linux.

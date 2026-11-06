@@ -23,6 +23,24 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how these fit together.
 - `REPRODUCE.sh`: runs every step, from building to the analysis
 - `cmake/Ns3.cmake`: fetches and builds ns-3
 
+## Experiments
+
+Keep this table in step with the scripts in `experiments/`, which are the source of truth.
+
+| Experiment | Routers | Degree | Hosts per router | Span | Loads | Seeds | Bypass modes | Release delay |
+| --- | ---: | ---: | ---: | ---: | --- | --- | --- | ---: |
+| `01-smoke` | 64 | 8 | 2 | 1 ms | 0.1, 0.3 with no bypass; 0.3 with a bypass | 561 | none, adjacent, shortest | 500 µs |
+| `02-small-sweep` | 64 | 8 | 2 | 4 ms | 0.1, 0.3, 0.5, 0.7 | 561–565 | none, adjacent, shortest | 1 ms |
+| `03-load-sweep` | 256 | 16 | 4 | 4 ms | 0.1, 0.3, 0.5 | 561–563 | none, adjacent, shortest | 1 ms |
+
+All experiments share these settings:
+
+- **Routing:** 4 waypoints and 2 pointing next hops
+- **Links:** 100 Gbps with 500 ns delay
+- **Queues:** 100 packets at routers and 1,000 at hosts
+- **Traffic:** uniform random hosts, with 90% of flows at 10 KB and 10% at 1 MB
+- **TCP:** 1 ms minimum retransmission timeout
+
 ## Workflow
 
 `./REPRODUCE.sh` runs everything below in order, from building to the analysis notebooks. The individual steps are:
@@ -32,10 +50,12 @@ cmake -B build                                 # configure
 cmake --build build --parallel                 # compile, into build/bin/
 ctest --test-dir build -L quick                # fast tests, in seconds
 ctest --test-dir build                         # all tests, including the full verifier
-experiments/tcp-baseline-smoke.sh              # quick end-to-end checks, about 10 seconds each
-experiments/tcp-bypass-smoke.sh
-JOBS=8 experiments/tcp-baseline-load-sweep.sh  # full experiments; JOBS sets how many runs go at once
-JOBS=8 experiments/tcp-bypass-load-sweep.sh    # same flows as the baseline sweep, with each bypass
+experiments/01-smoke-baseline.sh               # quick end-to-end checks, about 10 seconds each
+experiments/01-smoke-bypass.sh
+JOBS=6 experiments/02-small-sweep-baseline.sh  # small network; JOBS sets how many runs go at once
+JOBS=6 experiments/02-small-sweep-bypass.sh    # same flows as the baseline sweep, with each bypass
+JOBS=6 experiments/03-load-sweep-baseline.sh   # larger network, using the same pattern
+JOBS=6 experiments/03-load-sweep-bypass.sh
 cmake --build build --target format            # format the C++ code before committing
 ```
 

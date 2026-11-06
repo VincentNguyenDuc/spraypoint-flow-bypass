@@ -1,0 +1,4 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/experiments/analysis/.venv/bin/python",
+    "jupyter.notebookFileRoot": "${fileDirname}"
+}

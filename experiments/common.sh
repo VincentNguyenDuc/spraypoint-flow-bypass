@@ -80,7 +80,7 @@ run_experiment() {
         return
     fi
 
-    while [ "$(jobs -r | wc -l)" -ge "$JOBS" ]; do
+    while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do
         sleep 1
     done
     started=$((started + 1))

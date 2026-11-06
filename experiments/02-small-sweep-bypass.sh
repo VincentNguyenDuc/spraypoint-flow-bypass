@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Flow completion times with each small-flow bypass, across loads and seeds.  Compare
-# with tcp-baseline-load-sweep.sh, which runs the same flows with no bypass.
+# Flow completion times with each small-flow bypass on a small network.  Compare with
+# 02-small-sweep-baseline.sh, which runs the same flows with no bypass.
 PROGRAM_NAME=tcp-bypass
 source "$(dirname "$0")/common.sh"
-source "$(dirname "$0")/load-sweep-settings.sh"
+source "$(dirname "$0")/02-small-sweep-settings.sh"
 
 for bypass in adjacent shortest; do
     for seed in "${SEEDS[@]}"; do

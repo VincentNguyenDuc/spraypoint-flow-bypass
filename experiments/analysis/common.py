@@ -12,8 +12,10 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 RESULTS = Path(os.environ.get("RESULTS_DIR", ROOT / "experiments" / "results"))
 
-BASELINE_EXPERIMENT = os.environ.get("BASELINE_EXPERIMENT", "tcp-baseline-load-sweep")
-BYPASS_EXPERIMENT = os.environ.get("BYPASS_EXPERIMENT", "tcp-bypass-load-sweep")
+# The sweep the notebooks analyze: 02-small-sweep or 03-load-sweep.
+SWEEP = os.environ.get("SWEEP", "02-small-sweep")
+BASELINE_EXPERIMENT = f"{SWEEP}-baseline"
+BYPASS_EXPERIMENT = f"{SWEEP}-bypass"
 
 # Flows starting this close to either end of the run are left out by default: the
 # network starts empty and drains at the end, so they see less load.
