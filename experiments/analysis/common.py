@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 RESULTS = Path(os.environ.get("RESULTS_DIR", ROOT / "experiments" / "results"))
 
 BASELINE_EXPERIMENT = os.environ.get("BASELINE_EXPERIMENT", "tcp-baseline-load-sweep")

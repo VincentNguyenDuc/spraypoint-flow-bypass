@@ -27,7 +27,7 @@ flowchart TD
 - **TCP bypass (`src/tcp-bypass/`):** the same experiment, except that small flows can skip the spray step. It adds only that routing decision, so flows, TCP, and measurements stay the same as the baseline.
 - **Tests (`test/`):** check the layers from outside. The verifier compares the core with the paper, without ns-3, and other tests check the programs' behavior.
 - **Experiments (`experiments/`):** each script fixes the settings for one experiment, runs its program, and writes to `experiments/results/<script name>/`.
-- **Analysis (`analysis/`):** notebooks that read `experiments/results/`: one for the baseline, and one comparing it with the bypass.
+- **Analysis (`experiments/analysis/`):** notebooks that read `experiments/results/`: one for the baseline, and one comparing it with the bypass.
 
 ## Extending the experiment
 
@@ -45,6 +45,24 @@ flowchart LR
 - **`SpraypointRouting::SelectNextHop`** chooses a packet's next hop.
 
 A new routing variant can follow the same pattern as a separate program, leaving the existing ones unchanged.
+
+## Experiments
+
+An experiment is a script that says which runs to do. Data moves one way, from scripts to results to notebooks, so analysis can be rerun without rerunning simulations.
+
+```mermaid
+flowchart LR
+    settings["load-sweep-settings.sh<br/>settings shared by sweeps"] --> script
+    common["common.sh<br/>how to run"] --> script
+    script["tcp-*.sh<br/>which runs to do"] -->|"runs the program"| results["results/<br/>one folder per run"]
+    results --> analysis["analysis/<br/>notebooks"]
+```
+
+- **Scripts (`tcp-*.sh`):** each one is a complete, repeatable experiment, named for what it runs: `smoke` is a quick check, and `load-sweep` is the real measurement across loads and seeds. To add an experiment, copy a script and change its settings.
+- **Shared logic (`common.sh`):** builds the program and runs the simulations, in parallel if asked. It skips finished runs, so an interrupted experiment continues where it stopped.
+- **Results (`results/<script name>/<run name>/`):** each run's data, plus the exact options, commit, and machine that produced it. Git ignores the contents.
+- **Analysis (`analysis/`):** notebooks that read the results, using whichever runs have finished.
+- **Workloads (`workloads/`):** published flow-size distributions that experiments can use.
 
 ## Comparing experiments
 

@@ -30,14 +30,14 @@ experiments/tcp-baseline-load-sweep.sh
 experiments/tcp-bypass-load-sweep.sh
 
 step "Analysis"
-if [ ! -x analysis/.venv/bin/jupyter ]; then
-    python3 -m venv analysis/.venv
-    analysis/.venv/bin/pip install --quiet -r analysis/requirements.txt
+if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then
+    python3 -m venv experiments/analysis/.venv
+    experiments/analysis/.venv/bin/pip install --quiet -r experiments/analysis/requirements.txt
 fi
-for notebook in analysis/*.ipynb; do
-    analysis/.venv/bin/jupyter nbconvert --to notebook --execute --inplace \
+for notebook in experiments/analysis/*.ipynb; do
+    experiments/analysis/.venv/bin/jupyter nbconvert --to notebook --execute --inplace \
         --ExecutePreprocessor.timeout=3600 "$notebook"
 done
 
 step "Done"
-echo "Results are in experiments/results/, and the notebooks in analysis/ show the analysis."
+echo "Results are in experiments/results/, and the notebooks in experiments/analysis/ show the analysis."
