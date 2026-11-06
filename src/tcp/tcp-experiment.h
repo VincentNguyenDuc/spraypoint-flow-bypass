@@ -116,6 +116,12 @@ class TcpExperiment
         uint32_t maxLength{0};
         ns3::Time lastChange;
         double packetSeconds{0}; // queue length integrated over time
+        uint64_t sentSmall{0};   // IP bytes fully transmitted, fabric ports only
+        uint64_t sentLarge{0};
+        // Snapshots taken when the last flow arrives, so that link load and queues can
+        // be measured over the time the network carries the offered load.
+        uint64_t sentDuringArrivals{0};
+        double packetSecondsDuringArrivals{0};
     };
 
     void ConfigureTcp() const;
@@ -134,6 +140,8 @@ class TcpExperiment
                   const ns3::Address&);
     void OnHostDeliver(const ns3::Ipv4Header& header, ns3::Ptr<const ns3::Packet>, uint32_t);
     void OnQueueLength(uint32_t port, uint32_t, uint32_t length);
+    void OnPortSent(uint32_t port, ns3::Ptr<const ns3::Packet> packet);
+    void RecordArrivalWindow();
     void OnTcDrop(bool atRouter, ns3::Ptr<const ns3::Packet>);
     void OnDeviceDrop(ns3::Ptr<const ns3::Packet>);
     void OnIpDrop(const ns3::Ipv4Header&,

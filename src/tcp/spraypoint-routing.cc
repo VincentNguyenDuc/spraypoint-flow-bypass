@@ -97,12 +97,6 @@ SpraypointRouting::AddHostPort(Ipv4Address host, Ptr<NetDevice> device)
 }
 
 const SpraypointRouting::LinkCounters&
-SpraypointRouting::GetDepartures(uint32_t neighbor) const
-{
-    return m_fabricPorts.at(neighbor).departures;
-}
-
-const SpraypointRouting::LinkCounters&
 SpraypointRouting::GetArrivals(uint32_t neighbor) const
 {
     return m_fabricPorts.at(neighbor).arrivals;
@@ -185,8 +179,6 @@ SpraypointRouting::RouteInput(Ptr<const Packet> p,
         NS_ABORT_MSG_IF(fabric == m_fabricPorts.end(),
                         "router " << m_router << " routed to non-neighbor " << next);
         port = fabric->second.device;
-        auto& departures = fabric->second.departures;
-        (small ? departures.forwardedSmall : departures.forwardedLarge) += bytes;
     }
 
     auto route = Create<Ipv4Route>();

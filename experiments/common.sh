@@ -26,7 +26,8 @@ if ! build_log=$(cmake -S . -B build 2>&1 && cmake --build build --target "$PROG
 fi
 
 COMMIT=$(git rev-parse --short HEAD)
-if [ -n "$(git status --porcelain)" ]; then
+# Only what affects results counts: running notebooks also changes tracked files.
+if [ -n "$(git status --porcelain -- src cmake CMakeLists.txt experiments/*.sh)" ]; then
     COMMIT="$COMMIT (uncommitted changes)"
     echo "warning: the working tree has uncommitted changes" >&2
 fi

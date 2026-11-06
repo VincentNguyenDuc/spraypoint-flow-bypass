@@ -36,10 +36,13 @@ if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then
     python3 -m venv experiments/analysis/.venv
     experiments/analysis/.venv/bin/pip install --quiet -r experiments/analysis/requirements.txt
 fi
-for notebook in experiments/analysis/*.ipynb; do
-    experiments/analysis/.venv/bin/jupyter nbconvert --to notebook --execute --inplace \
-        --ExecutePreprocessor.timeout=3600 "$notebook"
+for sweep in 02-small-sweep 03-load-sweep; do
+    for notebook in experiments/analysis/*.ipynb; do
+        SWEEP=$sweep experiments/analysis/.venv/bin/jupyter nbconvert --to notebook --execute \
+            --ExecutePreprocessor.timeout=3600 --output-dir experiments/results/analysis \
+            --output "$sweep-$(basename "$notebook")" "$notebook"
+    done
 done
 
 step "Done"
-echo "Results are in experiments/results/, and the notebooks in experiments/analysis/ show the analysis."
+echo "Results and the executed notebooks are in experiments/results/."

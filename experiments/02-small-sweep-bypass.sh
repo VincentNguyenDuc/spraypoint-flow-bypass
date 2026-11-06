@@ -3,7 +3,7 @@
 # 02-small-sweep-baseline.sh, which runs the same flows with no bypass.
 PROGRAM_NAME=tcp-bypass
 source "$(dirname "$0")/common.sh"
-source "$(dirname "$0")/02-small-sweep-settings.sh"
+source "$ROOT/experiments/02-small-sweep-settings.sh"
 
 for bypass in adjacent shortest; do
     for seed in "${SEEDS[@]}"; do

@@ -60,6 +60,7 @@ def _parse_summary(text):
     summary["completed"], summary["flows"] = int(match[1]), int(match[2])
     summary["sim_end_us"] = float(match[3])
     summary["link_gbps"] = float(re.search(r"link-gbps=(\S+)", text)[1])
+    summary["fabric_queue"] = int(re.search(r"fabric-queue=(\d+)", text)[1])
     summary["drops"] = {k: int(v) for k, v in re.findall(r"(\w+)=(\d+)", re.search(r"^drops (.*)$", text, re.M)[1])}
     summary["path_lengths"] = {
         name: {int(h): float(f) for h, f in re.findall(r"L(\d+)=(\S+)", line)}
@@ -87,7 +88,8 @@ def load_runs(experiment):
     """Finished runs of one experiment, sorted by load, seed, and bypass mode."""
     runs = []
     for path in sorted((RESULTS / experiment).glob("*")):
-        if not (path / "summary.txt").is_file():
+        # A run is only finished once common.sh renames it to its final name.
+        if path.suffix in (".partial", ".failed") or not (path / "summary.txt").is_file():
             continue
         options = dict(
             line.lstrip("-").split("=", 1) for line in (path / "args.txt").read_text().split()
@@ -115,7 +117,7 @@ def runs_table(runs):
                 "no_route_drops": drops["no_route"],
                 "queue_drops": drops["router_queue"] + drops["host_queue"],
                 "wall_minutes": round(float(run.meta.get("wall_seconds", "nan")) / 60, 1),
-                "peak_memory_mb": round(run.meta["peak_memory_mb"]),
+                "peak_memory_mb": round(run.meta["peak_memory_mb"], 1),
                 "commit": run.meta.get("commit", ""),
             }
         )
@@ -168,28 +170,16 @@ def fct_table(flows, by):
     return table.astype({"flows": int, "unfinished": int, "beyond_p99": int})
 
 
-def _active_seconds(run):
-    """How long the run carried traffic: until flows holding 99% of the bytes finished.
-    The simulated end time doesn't work here, since one lost SYN can extend it far past
-    the traffic, and a flow-count percentile can land on those stragglers too."""
-    flows = pd.read_csv(run.path / "flows.csv", usecols=["bytes", "finish_ns"])
-    flows["finish_ns"] = flows["finish_ns"].fillna(np.inf)
-    flows = flows.sort_values("finish_ns")
-    reached = flows["bytes"].cumsum() >= 0.99 * flows["bytes"].sum()
-    return flows.loc[reached.idxmax(), "finish_ns"] * 1e-9
-
-
 def load_links(runs):
-    """One row per directed fabric link, with its utilization while the run carried
-    traffic, and its mean queue over that same time."""
+    """One row per directed fabric link, with its utilization while flows kept arriving,
+    which is when the network carries the offered load, and whether its queue ever filled."""
     frames = []
     for run in runs:
         links = pd.read_csv(run.path / "links.csv")
-        forwarded = links["forwarded_small_bytes"] + links["forwarded_large_bytes"]
-        active = _active_seconds(run)
-        links["utilization"] = forwarded / (run.summary["link_gbps"] * 1e9 / 8 * active)
-        # The simulator averages over the whole run; queues are empty once traffic stops.
-        links["mean_queue_packets"] *= run.summary["sim_end_us"] * 1e-6 / active
+        last_start_ns = pd.read_csv(run.path / "flows.csv", usecols=["start_ns"])["start_ns"].max()
+        capacity_bytes = run.summary["link_gbps"] * 1e9 / 8 * last_start_ns * 1e-9
+        links["utilization"] = links["sent_bytes_during_arrivals"] / capacity_bytes
+        links["filled"] = links["max_queue_packets"] >= run.summary["fabric_queue"]
         links["load"], links["seed"], links["bypass"] = run.load, run.seed, run.bypass
         frames.append(links)
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
@@ -202,8 +192,8 @@ def link_table(links, by):
         p99_utilization=("utilization", lambda u: percentile(u.to_numpy(), 0.99)),
         max_utilization=("utilization", "max"),
         hotspot_ratio=("utilization", lambda u: u.max() / u.mean()),
-        links_at_full_queue=("max_queue_packets", lambda q: int((q >= q.max()).sum())),
-        mean_queue_packets=("mean_queue_packets", "mean"),
+        share_of_links_filled=("filled", "mean"),
+        mean_queue_packets=("mean_queue_packets_during_arrivals", "mean"),
     )
 
 

@@ -3,7 +3,7 @@
 # with 03-load-sweep-baseline.sh, which runs the same flows with no bypass.
 PROGRAM_NAME=tcp-bypass
 source "$(dirname "$0")/common.sh"
-source "$(dirname "$0")/03-load-sweep-settings.sh"
+source "$ROOT/experiments/03-load-sweep-settings.sh"
 
 for bypass in adjacent shortest; do
     for seed in "${SEEDS[@]}"; do

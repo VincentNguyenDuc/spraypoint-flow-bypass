@@ -26,13 +26,10 @@ namespace rng
 class SpraypointRouting : public ns3::Ipv4RoutingProtocol
 {
   public:
-    // IP bytes that crossed one directed fabric link.
+    // IP bytes that ended at this router after arriving over one fabric link, which
+    // shows how a destination's traffic fans in across its neighbors.
     struct LinkCounters
     {
-        uint64_t forwardedSmall{0};
-        uint64_t forwardedLarge{0};
-        // The part of the above that ended at this link's far router, which
-        // shows how a destination's traffic fans in across its neighbors.
         uint64_t deliveredSmall{0};
         uint64_t deliveredLarge{0};
     };
@@ -51,9 +48,6 @@ class SpraypointRouting : public ns3::Ipv4RoutingProtocol
     void AddFabricPort(uint32_t neighbor, ns3::Ptr<ns3::NetDevice> device);
     void AddHostPort(ns3::Ipv4Address host, ns3::Ptr<ns3::NetDevice> device);
 
-    // Counters for the link from this router to neighbor.  The delivered fields
-    // are recorded by the far router, so read them from GetArrivals there.
-    const LinkCounters& GetDepartures(uint32_t neighbor) const;
     // Counters for the link from neighbor to this router.
     const LinkCounters& GetArrivals(uint32_t neighbor) const;
 
@@ -92,7 +86,6 @@ class SpraypointRouting : public ns3::Ipv4RoutingProtocol
     struct FabricPort
     {
         ns3::Ptr<ns3::NetDevice> device;
-        LinkCounters departures;
         LinkCounters arrivals;
     };
 

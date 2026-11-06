@@ -265,6 +265,11 @@ TcpExperiment::ConnectPort(Ptr<NetDevice> device, PortKind kind, uint32_t from, 
         "PacketsInQueue",
         MakeCallback(&TcpExperiment::OnQueueLength, this).Bind(index));
     p2p->TraceConnectWithoutContext("MacTxDrop", MakeCallback(&TcpExperiment::OnDeviceDrop, this));
+    if (kind == FABRIC)
+    {
+        p2p->TraceConnectWithoutContext("PhyTxEnd",
+                                        MakeCallback(&TcpExperiment::OnPortSent, this).Bind(index));
+    }
 }
 
 void
@@ -363,6 +368,7 @@ TcpExperiment::GenerateFlows()
         throw std::runtime_error("the workload has no flows; increase spanMs or load");
     }
     Simulator::Schedule(m_flows.front().start, &TcpExperiment::StartFlow, this, 0);
+    Simulator::Schedule(m_flows.back().start, &TcpExperiment::RecordArrivalWindow, this);
 }
 
 void
@@ -495,6 +501,31 @@ TcpExperiment::OnQueueLength(uint32_t index, uint32_t, uint32_t length)
     port.lastChange = now;
     port.maxLength = std::max(port.maxLength, length);
     m_maxQueue[port.kind] = std::max(m_maxQueue[port.kind], length);
+}
+
+void
+TcpExperiment::OnPortSent(uint32_t index, Ptr<const Packet> packet)
+{
+    auto copy = packet->Copy();
+    PppHeader ppp;
+    copy->RemoveHeader(ppp);
+    Ipv4Header ip;
+    copy->PeekHeader(ip);
+    auto& port = m_ports[index];
+    const bool small = (ip.GetTos() & 0xfc) == SpraypointRouting::SMALL_FLOW_TOS;
+    (small ? port.sentSmall : port.sentLarge) += copy->GetSize();
+}
+
+void
+TcpExperiment::RecordArrivalWindow()
+{
+    const auto now = Simulator::Now();
+    for (auto& port : m_ports)
+    {
+        port.sentDuringArrivals = port.sentSmall + port.sentLarge;
+        port.packetSecondsDuringArrivals =
+            port.packetSeconds + port.length * (now - port.lastChange).GetSeconds();
+    }
 }
 
 void
@@ -655,23 +686,21 @@ void
 TcpExperiment::WriteLinks(const std::string& path) const
 {
     std::ofstream file(path);
-    file << "from,to,forwarded_small_bytes,forwarded_large_bytes,delivered_small_bytes,"
-            "delivered_large_bytes,max_queue_packets,mean_queue_packets\n";
-    const auto now = Simulator::Now();
+    file << "from,to,sent_small_bytes,sent_large_bytes,sent_bytes_during_arrivals,"
+            "delivered_small_bytes,delivered_large_bytes,max_queue_packets,"
+            "mean_queue_packets_during_arrivals\n";
+    const double arrivalSeconds = m_flows.back().start.GetSeconds();
     for (const auto& port : m_ports)
     {
         if (port.kind != FABRIC)
         {
             continue;
         }
-        const auto& departures = m_routing[port.from]->GetDepartures(port.to);
         const auto& arrivals = m_routing[port.to]->GetArrivals(port.from);
-        const double packetSeconds =
-            port.packetSeconds + port.length * (now - port.lastChange).GetSeconds();
-        file << port.from << "," << port.to << "," << departures.forwardedSmall << ","
-             << departures.forwardedLarge << "," << arrivals.deliveredSmall << ","
+        file << port.from << "," << port.to << "," << port.sentSmall << "," << port.sentLarge << ","
+             << port.sentDuringArrivals << "," << arrivals.deliveredSmall << ","
              << arrivals.deliveredLarge << "," << port.maxLength << ","
-             << packetSeconds / now.GetSeconds() << "\n";
+             << port.packetSecondsDuringArrivals / arrivalSeconds << "\n";
     }
     if (!file.flush())
     {
