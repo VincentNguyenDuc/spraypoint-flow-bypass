@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <future>
 #include <map>
 #include <string>
@@ -203,6 +204,18 @@ main(int argc, char* argv[])
         }
         std::printf("\n\n");
 
+        std::vector<std::string> cdfExamples;
+        const auto cdfViolations = rng::CheckFlowSizeCdf(
+            (std::filesystem::temp_directory_path() / "rng-verify-flow-size.cdf").string(),
+            cdfExamples);
+        std::printf("[flow sizes] CDF sampling and mean\n");
+        std::printf("  violations=%llu\n", static_cast<unsigned long long>(cdfViolations));
+        for (const auto& example : cdfExamples)
+        {
+            std::printf("  violation: %s\n", example.c_str());
+        }
+        std::printf("\n");
+
         const auto lengths = rng::PathLengthDistribution(routing);
         const auto modelLengths = rng::model::PathLengthFractions(n, d, p, ell);
         std::printf("[path length] exact over all pairs and spray choices vs. Model 7.2\n");
@@ -296,7 +309,7 @@ main(int argc, char* argv[])
                 std::printf("n/a (ell != 1)\n");
             }
         }
-        return structure.violations == 0 ? 0 : 1;
+        return structure.violations + cdfViolations == 0 ? 0 : 1;
     }
     catch (const std::exception& error)
     {

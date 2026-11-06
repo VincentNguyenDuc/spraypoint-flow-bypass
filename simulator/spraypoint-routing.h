@@ -18,11 +18,27 @@ namespace rng
 // follow the pointing table.  Next hops hash the 5-tuple, so all packets of a
 // flow share one path and TCP sees no reordering from the routing.
 //
+// Hosts mark small flows with SMALL_FLOW_TOS so their traffic can be counted
+// separately.  The mark does not change how a packet is routed.
+//
 // A host's address encodes its router as 10.<router high>.<router low>.<host+2>,
 // so the destination router comes from the address and no routes are exchanged.
 class SpraypointRouting : public ns3::Ipv4RoutingProtocol
 {
   public:
+    // IP bytes that crossed one directed fabric link.
+    struct LinkCounters
+    {
+        uint64_t forwardedSmall{0};
+        uint64_t forwardedLarge{0};
+        // The part of the above that ended at this link's far router, which
+        // shows how a destination's traffic fans in across its neighbors.
+        uint64_t deliveredSmall{0};
+        uint64_t deliveredLarge{0};
+    };
+
+    static constexpr uint8_t SMALL_FLOW_TOS = 0x28; // DSCP AF11; the ECN bits stay clear
+
     static ns3::TypeId GetTypeId();
 
     // tables must outlive this object; all routers share one copy.
@@ -34,6 +50,12 @@ class SpraypointRouting : public ns3::Ipv4RoutingProtocol
 
     void AddFabricPort(uint32_t neighbor, ns3::Ptr<ns3::NetDevice> device);
     void AddHostPort(ns3::Ipv4Address host, ns3::Ptr<ns3::NetDevice> device);
+
+    // Counters for the link from this router to neighbor.  The delivered fields
+    // are recorded by the far router, so read them from GetArrivals there.
+    const LinkCounters& GetDepartures(uint32_t neighbor) const;
+    // Counters for the link from neighbor to this router.
+    const LinkCounters& GetArrivals(uint32_t neighbor) const;
 
     ns3::Ptr<ns3::Ipv4Route> RouteOutput(ns3::Ptr<ns3::Packet> p,
                                          const ns3::Ipv4Header& header,
@@ -55,13 +77,21 @@ class SpraypointRouting : public ns3::Ipv4RoutingProtocol
                            ns3::Time::Unit unit = ns3::Time::S) const override;
 
   private:
+    struct FabricPort
+    {
+        ns3::Ptr<ns3::NetDevice> device;
+        LinkCounters departures;
+        LinkCounters arrivals;
+    };
+
     void DoDispose() override;
 
     const Spraypoint& m_tables;
     uint32_t m_router;
-    std::unordered_map<uint32_t, ns3::Ptr<ns3::NetDevice>> m_fabricPorts; // by neighbor router
-    std::unordered_map<uint32_t, ns3::Ptr<ns3::NetDevice>> m_hostPorts;   // by host IPv4 address
-    std::vector<bool> m_hostFacing;                                       // by device ifIndex
+    std::unordered_map<uint32_t, FabricPort> m_fabricPorts;             // by neighbor router
+    std::unordered_map<uint32_t, ns3::Ptr<ns3::NetDevice>> m_hostPorts; // by host IPv4 address
+    std::vector<bool> m_hostFacing;                                     // by device ifIndex
+    std::vector<uint32_t> m_neighborOfPort;                             // by device ifIndex
 };
 
 } // namespace rng

@@ -19,7 +19,7 @@ namespace rng
 {
 
 // Builds the ns-3 fabric for a Spraypoint topology, sends sample traffic, and
-// prints the baseline metrics parsed by scripts/run_rng_experiments.py.
+// prints the metrics parsed by scripts/run_rng_experiments.py.
 class RngExperiment
 {
   public:

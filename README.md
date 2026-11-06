@@ -1,29 +1,10 @@
 # CSE 561: Shortest-Path Bypass for Small Flows in Spraypoint
 
-This repository contains an ns-3 reproduction of the RNG/Spraypoint routing baseline from *RNG: Flat Datacenter Networks at Scale*. The simulator source and experiment harness are versioned in this repository; the pinned official ns-3 dependency is downloaded automatically on first run.
+This project tests whether routing small flows on shortest paths, instead of spraying them, lowers their tail latency on the fabric from *RNG: Flat Datacenter Networks at Scale*, and what that costs other traffic. See the [proposal](PROJECT_PROPOSAL.md).
 
-## Reproduce the baseline
+The repository has an ns-3 simulator with two experiments:
 
-```bash
-make reproduce-smoke
-```
+- **Paper reproduction:** checks the routing against the paper.
+- **TCP experiment:** compares flow completion times under default Spraypoint and the small-flow bypass.
 
-The command downloads the pinned ns-3 source, builds the minimal required modules, runs one deterministic seed, and writes `results/rng_smoke.csv`.
-
-For the five-seed baseline sweep, run:
-
-```bash
-make reproduce
-```
-
-To check the routing implementation against the paper's §5 rules and §9 benchmarks (path lengths, edge-disjoint paths, oversubscription) without ns-3, run:
-
-```bash
-make verify
-```
-
-See [REPRODUCING_RNG.md](REPRODUCING_RNG.md) for prerequisites, expected results, technical details, and command-line options.
-
-## Formatting
-
-C++ sources follow ns-3's style, defined in [.clang-format](.clang-format). Run `make format` before committing; it needs clang-format 19 or later.
+The pinned official ns-3 dependency is downloaded automatically on first run.

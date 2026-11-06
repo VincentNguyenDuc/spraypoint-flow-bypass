@@ -2,8 +2,8 @@
 
 CPP_SOURCES := $(wildcard simulator/*.cc simulator/*.h verification/*.cc verification/*.h)
 CXX ?= c++
-VERIFY_SOURCES := $(wildcard verification/*.cc) simulator/spraypoint.cc simulator/max-flow.cc
-VERIFY_HEADERS := $(wildcard verification/*.h) simulator/spraypoint.h simulator/max-flow.h simulator/hash.h
+VERIFY_SOURCES := $(wildcard verification/*.cc) simulator/spraypoint.cc simulator/max-flow.cc simulator/flow-size-cdf.cc
+VERIFY_HEADERS := $(wildcard verification/*.h) simulator/spraypoint.h simulator/max-flow.h simulator/hash.h simulator/flow-size-cdf.h
 
 # The runner downloads the pinned ns-3 source on first use and writes a CSV.
 reproduce:

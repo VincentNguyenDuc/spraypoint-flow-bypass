@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run repeatable ns-3 RNG/Spraypoint baseline experiments and save a CSV."""
+"""Run repeatable ns-3 RNG/Spraypoint paper reproductions and save a CSV."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ SIMULATOR_MAIN = SIMULATOR_DIR / "main.cc"
 SCRATCH_NAME = "rng-spraypoint"
 SCRATCH_PROGRAM = f"scratch/{SCRATCH_NAME}/{SIMULATOR_MAIN.stem}"
 NS3_REPOSITORY = "https://gitlab.com/nsnam/ns-3-dev.git"
-# Pinned after verifying the baseline reproduction; do not silently build a
+# Pinned after verifying the paper reproduction; do not silently build a
 # later ns-3 tip when a collaborator runs the experiment months from now.
 NS3_REVISION = "c3b0d18fc6d6e61b0cc792eb45d8fe7a1db78d08"
 NS3_MODULES = "core;network;point-to-point;internet;applications"
@@ -133,7 +133,7 @@ def main() -> int:
     parser.add_argument("--seeds", default="561,562,563,564,565", help="comma-separated seeds")
     parser.add_argument("--flows", type=int, default=50_000)
     parser.add_argument("--samples", type=int, default=500)
-    parser.add_argument("--output", type=Path, default=ROOT / "results" / "rng_baseline.csv")
+    parser.add_argument("--output", type=Path, default=ROOT / "results" / "rng_reproduction.csv")
     parser.add_argument("--configure", action="store_true", help="force minimal ns-3 reconfiguration")
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument(

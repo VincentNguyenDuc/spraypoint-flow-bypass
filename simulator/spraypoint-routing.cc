@@ -77,7 +77,12 @@ SpraypointRouting::RouterOf(Ipv4Address address)
 void
 SpraypointRouting::AddFabricPort(uint32_t neighbor, Ptr<NetDevice> device)
 {
-    m_fabricPorts[neighbor] = device;
+    m_fabricPorts[neighbor].device = device;
+    if (m_neighborOfPort.size() <= device->GetIfIndex())
+    {
+        m_neighborOfPort.resize(device->GetIfIndex() + 1, 0);
+    }
+    m_neighborOfPort[device->GetIfIndex()] = neighbor;
 }
 
 void
@@ -89,6 +94,18 @@ SpraypointRouting::AddHostPort(Ipv4Address host, Ptr<NetDevice> device)
         m_hostFacing.resize(device->GetIfIndex() + 1, false);
     }
     m_hostFacing[device->GetIfIndex()] = true;
+}
+
+const SpraypointRouting::LinkCounters&
+SpraypointRouting::GetDepartures(uint32_t neighbor) const
+{
+    return m_fabricPorts.at(neighbor).departures;
+}
+
+const SpraypointRouting::LinkCounters&
+SpraypointRouting::GetArrivals(uint32_t neighbor) const
+{
+    return m_fabricPorts.at(neighbor).arrivals;
 }
 
 Ptr<Ipv4Route>
@@ -119,6 +136,11 @@ SpraypointRouting::RouteInput(Ptr<const Packet> p,
         return false;
     }
 
+    const auto ifIndex = idev->GetIfIndex();
+    const bool fromHost = ifIndex < m_hostFacing.size() && m_hostFacing[ifIndex];
+    const bool small = (header.GetTos() & 0xfc) == SMALL_FLOW_TOS;
+    const uint64_t bytes = p->GetSize() + header.GetSerializedSize();
+
     Ptr<NetDevice> port;
     if (destinationRouter == m_router)
     {
@@ -128,18 +150,23 @@ SpraypointRouting::RouteInput(Ptr<const Packet> p,
             return false;
         }
         port = host->second;
+        if (!fromHost)
+        {
+            auto& arrivals = m_fabricPorts.at(m_neighborOfPort[ifIndex]).arrivals;
+            (small ? arrivals.deliveredSmall : arrivals.deliveredLarge) += bytes;
+        }
     }
     else
     {
         const auto flow = FlowHash(p, header);
-        const auto ifIndex = idev->GetIfIndex();
-        const bool fromHost = ifIndex < m_hostFacing.size() && m_hostFacing[ifIndex];
         const auto next = fromHost ? m_tables.SprayHop(m_router, destinationRouter, flow)
                                    : m_tables.PointHop(m_router, destinationRouter, flow);
         const auto fabric = m_fabricPorts.find(next);
         NS_ABORT_MSG_IF(fabric == m_fabricPorts.end(),
                         "router " << m_router << " routed to non-neighbor " << next);
-        port = fabric->second;
+        port = fabric->second.device;
+        auto& departures = fabric->second.departures;
+        (small ? departures.forwardedSmall : departures.forwardedLarge) += bytes;
     }
 
     auto route = Create<Ipv4Route>();

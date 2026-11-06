@@ -38,6 +38,10 @@ EdgeDisjointSamples SampleEdgeDisjointPaths(const Spraypoint& routing,
                                             uint64_t seed,
                                             unsigned threads);
 
+// Checks FlowSizeCdf's sampling and mean on a small distribution written to
+// path.  Returns the number of violations and fills examples with the first few.
+uint64_t CheckFlowSizeCdf(const std::string& path, std::vector<std::string>& examples);
+
 } // namespace rng
 
 #endif // RNG_CHECKS_H
