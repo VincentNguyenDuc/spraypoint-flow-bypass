@@ -1,6 +1,7 @@
 # Locally cloned simulator dependency and generated experiment data.
 third_party/
 build/
-results/
+analysis/.venv/
+.ipynb_checkpoints/
 __pycache__/
 *.pyc

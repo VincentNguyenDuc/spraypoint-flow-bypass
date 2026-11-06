@@ -18,10 +18,14 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how these fit together.
 - `src/tcp/`: the TCP experiment
 - `src/tcp-bypass/`: the TCP bypass, built on `src/tcp/`
 - `test/`: one folder per test, including the verifier
-- `experiments/`: one script per experiment, writing to `results/<script name>/`
+- `experiments/`: one script per experiment, writing to `experiments/results/<script name>/`
+- `analysis/`: notebooks that read `experiments/results/`
+- `REPRODUCE.sh`: runs every step, from building to the analysis
 - `cmake/Ns3.cmake`: fetches and builds ns-3
 
 ## Workflow
+
+`./REPRODUCE.sh` runs everything below in order, from building to the analysis notebooks. The individual steps are:
 
 ```bash
 cmake -B build                                 # configure
@@ -36,6 +40,7 @@ cmake --build build --target format            # format the C++ code before comm
 ```
 
 - **Reproduce an experiment:** run its script. It builds what it needs, and rerunning skips finished runs, so an interrupted experiment picks up where it stopped.
+- **Analyze results:** run `python3 -m venv analysis/.venv && analysis/.venv/bin/pip install -r analysis/requirements.txt` once, then `analysis/.venv/bin/jupyter lab analysis/`. The notebooks use whatever runs have finished.
 - **Add an experiment:** copy a script in `experiments/` and change its settings.
 - **Add a test:** create `test/<name>/` with a `CMakeLists.txt`, and add it to `test/CMakeLists.txt`.
 - **Run with other settings:** pass options to a program in `build/bin/`. `--PrintHelp` lists the options of `tcp-experiment` and `tcp-bypass`, and `--help` lists those of `spraypoint-verifier`.

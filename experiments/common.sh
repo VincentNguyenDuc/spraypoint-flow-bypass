@@ -1,5 +1,5 @@
 # Shared by the experiment scripts.  Source this file, call run_experiment once per
-# run, then call finish_runs.  Results go to results/<script name>/<run name>/.
+# run, then call finish_runs.  Results go to experiments/results/<script name>/<run name>/.
 #
 # Runs use the tcp-experiment program unless the script sets PROGRAM_NAME first.
 #
@@ -10,7 +10,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 EXPERIMENT=$(basename "$0" .sh)
-RESULTS=$ROOT/results/$EXPERIMENT
+RESULTS=$ROOT/experiments/results/$EXPERIMENT
 PROGRAM_NAME=${PROGRAM_NAME:-tcp-experiment}
 PROGRAM=$ROOT/build/bin/$PROGRAM_NAME
 JOBS=${JOBS:-1}

@@ -26,7 +26,8 @@ flowchart TD
 - **TCP experiment (`src/tcp/`):** connects the core to ns-3. It builds the network, runs TCP flows over it, and records the results. Routers use the core's tables to forward real packets.
 - **TCP bypass (`src/tcp-bypass/`):** the same experiment, except that small flows can skip the spray step. It adds only that routing decision, so flows, TCP, and measurements stay the same as the baseline.
 - **Tests (`test/`):** check the layers from outside. The verifier compares the core with the paper, without ns-3, and other tests check the programs' behavior.
-- **Experiments (`experiments/`):** each script fixes the settings for one experiment, runs its program, and writes to `results/<script name>/`.
+- **Experiments (`experiments/`):** each script fixes the settings for one experiment, runs its program, and writes to `experiments/results/<script name>/`.
+- **Analysis (`analysis/`):** notebooks that read `experiments/results/`: one for the baseline, and one comparing it with the bypass.
 
 ## Extending the experiment
 
