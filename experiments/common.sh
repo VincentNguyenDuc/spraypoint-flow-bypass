@@ -1,5 +1,7 @@
-# Shared by the experiment scripts.  Source this file, call run_tcp once per run,
-# then call finish_runs.  Results go to results/<script name>/<run name>/.
+# Shared by the experiment scripts.  Source this file, call run_experiment once per
+# run, then call finish_runs.  Results go to results/<script name>/<run name>/.
+#
+# Runs use the tcp-experiment program unless the script sets PROGRAM_NAME first.
 #
 # Rerunning a script skips finished runs and retries failed ones.  Set JOBS to
 # run several simulations at once; check memory use first, since each run has
@@ -9,14 +11,15 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 EXPERIMENT=$(basename "$0" .sh)
 RESULTS=$ROOT/results/$EXPERIMENT
-PROGRAM=$ROOT/build/bin/tcp-experiment
+PROGRAM_NAME=${PROGRAM_NAME:-tcp-experiment}
+PROGRAM=$ROOT/build/bin/$PROGRAM_NAME
 JOBS=${JOBS:-1}
 
 mkdir -p "$RESULTS"
 cd "$ROOT"
 
 # The first build also fetches and builds ns-3, which takes several minutes.
-if ! build_log=$(cmake -S . -B build 2>&1 && cmake --build build --target tcp-experiment 2>&1); then
+if ! build_log=$(cmake -S . -B build 2>&1 && cmake --build build --target "$PROGRAM_NAME" 2>&1); then
     echo "$build_log" >&2
     echo "error: the build failed" >&2
     exit 1
@@ -59,8 +62,8 @@ stop_runs() {
 }
 trap stop_runs INT TERM
 
-# run_tcp <run name> <program options...>
-run_tcp() {
+# run_experiment <run name> <program options...>
+run_experiment() {
     local run=$1
     shift
     local directory=$RESULTS/$run

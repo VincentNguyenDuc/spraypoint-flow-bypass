@@ -108,6 +108,28 @@ SpraypointRouting::GetArrivals(uint32_t neighbor) const
     return m_fabricPorts.at(neighbor).arrivals;
 }
 
+uint32_t
+SpraypointRouting::SelectNextHop(uint32_t destinationRouter,
+                                 uint32_t flow,
+                                 bool,
+                                 bool fromHost) const
+{
+    return fromHost ? m_tables.SprayHop(m_router, destinationRouter, flow)
+                    : m_tables.PointHop(m_router, destinationRouter, flow);
+}
+
+const Spraypoint&
+SpraypointRouting::GetTables() const
+{
+    return m_tables;
+}
+
+uint32_t
+SpraypointRouting::GetRouter() const
+{
+    return m_router;
+}
+
 Ptr<Ipv4Route>
 SpraypointRouting::RouteOutput(Ptr<Packet>,
                                const Ipv4Header&,
@@ -158,9 +180,7 @@ SpraypointRouting::RouteInput(Ptr<const Packet> p,
     }
     else
     {
-        const auto flow = FlowHash(p, header);
-        const auto next = fromHost ? m_tables.SprayHop(m_router, destinationRouter, flow)
-                                   : m_tables.PointHop(m_router, destinationRouter, flow);
+        const auto next = SelectNextHop(destinationRouter, FlowHash(p, header), small, fromHost);
         const auto fabric = m_fabricPorts.find(next);
         NS_ABORT_MSG_IF(fabric == m_fabricPorts.end(),
                         "router " << m_router << " routed to non-neighbor " << next);

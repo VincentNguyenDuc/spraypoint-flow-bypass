@@ -130,6 +130,18 @@ TcpExperiment::Run()
     Simulator::Destroy();
 }
 
+Ptr<SpraypointRouting>
+TcpExperiment::CreateRouting(uint32_t router)
+{
+    return CreateObject<SpraypointRouting>(m_tables, router);
+}
+
+const Spraypoint&
+TcpExperiment::GetTables() const
+{
+    return m_tables;
+}
+
 void
 TcpExperiment::ConfigureTcp() const
 {
@@ -177,7 +189,7 @@ TcpExperiment::BuildNetwork()
     m_routing.reserve(m_config.nodes);
     for (uint32_t router = 0; router < m_config.nodes; ++router)
     {
-        m_routing.push_back(CreateObject<SpraypointRouting>(m_tables, router));
+        m_routing.push_back(CreateRouting(router));
         m_routers.Get(router)->GetObject<Ipv4>()->SetRoutingProtocol(m_routing.back());
     }
 

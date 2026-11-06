@@ -76,6 +76,18 @@ class SpraypointRouting : public ns3::Ipv4RoutingProtocol
     void PrintRoutingTable(ns3::Ptr<ns3::OutputStreamWrapper> stream,
                            ns3::Time::Unit unit = ns3::Time::S) const override;
 
+  protected:
+    // Chooses the neighbor for a packet leaving this router toward another one.
+    // flow is the 5-tuple hash, small says whether the packet is marked, and
+    // fromHost says whether it arrived on a host-facing port.
+    virtual uint32_t SelectNextHop(uint32_t destinationRouter,
+                                   uint32_t flow,
+                                   bool small,
+                                   bool fromHost) const;
+
+    const Spraypoint& GetTables() const;
+    uint32_t GetRouter() const;
+
   private:
     struct FabricPort
     {

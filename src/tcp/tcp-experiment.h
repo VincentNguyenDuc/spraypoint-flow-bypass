@@ -28,29 +28,29 @@ namespace rng
 
 struct TcpExperimentConfig
 {
-    uint32_t nodes;
-    uint32_t degree;
-    uint32_t waypoints;
-    uint32_t nextHops;
-    uint64_t seed;
-    uint32_t hostsPerRouter;
-    uint32_t flows; // stop generating after this many flows; 0 means no limit
-    double spanMs;  // stop generating after this much simulated time; 0 means no limit
-    double load;    // offered load as a fraction of total host link capacity
-    std::string pattern;
-    uint32_t smallBytes;
-    uint32_t largeBytes;
-    double smallFraction;    // fraction of flows, not of bytes, that are small
-    std::string flowSizeCdf; // replaces the two sizes above when set
-    uint32_t smallThreshold; // flows up to this size are small; 0 means smallBytes
-    double linkGbps;
-    uint32_t linkDelayNs;
-    uint32_t fabricQueuePackets; // also used for router-to-host links
-    uint32_t nicQueuePackets;
-    uint32_t minRtoUs;
-    uint32_t maxSimMs;
-    uint32_t releaseDelayUs; // free a flow's memory this long after it finishes; 0 keeps it
-    std::string outputDir;   // write flows.csv, links.csv, and summary.txt here when set
+    uint32_t nodes{1000};
+    uint32_t degree{64};
+    uint32_t waypoints{4};
+    uint32_t nextHops{2};
+    uint64_t seed{561};
+    uint32_t hostsPerRouter{1};
+    uint32_t flows{20000}; // stop generating after this many flows; 0 means no limit
+    double spanMs{0};      // stop generating after this much simulated time; 0 means no limit
+    double load{0.1};      // offered load as a fraction of total host link capacity
+    std::string pattern{"uniform"};
+    uint32_t smallBytes{10000};
+    uint32_t largeBytes{1000000};
+    double smallFraction{0.9};  // fraction of flows, not of bytes, that are small
+    std::string flowSizeCdf;    // replaces the two sizes above when set
+    uint32_t smallThreshold{0}; // flows up to this size are small; 0 means smallBytes
+    double linkGbps{100};
+    uint32_t linkDelayNs{500};
+    uint32_t fabricQueuePackets{100}; // also used for router-to-host links
+    uint32_t nicQueuePackets{1000};
+    uint32_t minRtoUs{1000};
+    uint32_t maxSimMs{1000};
+    uint32_t releaseDelayUs{0}; // free a flow's memory this long after it finishes; 0 keeps it
+    std::string outputDir;      // write flows.csv, links.csv, and summary.txt here when set
 };
 
 // Runs TCP flows between hosts over a Spraypoint fabric and reports flow
@@ -59,8 +59,16 @@ class TcpExperiment
 {
   public:
     explicit TcpExperiment(const TcpExperimentConfig& config);
+    virtual ~TcpExperiment() = default;
 
     void Run();
+
+  protected:
+    // Creates the routing protocol for one router.  Called while building the
+    // network, so subclasses can already use their own members here.
+    virtual ns3::Ptr<SpraypointRouting> CreateRouting(uint32_t router);
+
+    const Spraypoint& GetTables() const;
 
   private:
     enum PortKind
