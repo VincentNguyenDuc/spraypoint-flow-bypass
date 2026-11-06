@@ -12,6 +12,8 @@ The first CMake configure downloads, builds, and installs the pinned official ns
 
 ## Structure
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how these fit together.
+
 - `src/spraypoint/`: core topology and routing tables, shared by all programs
 - `src/tcp/`: the TCP experiment
 - `src/tcp-bypass/`: the TCP bypass, built on `src/tcp/`
