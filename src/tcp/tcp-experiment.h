@@ -3,7 +3,7 @@
 
 #include "flow-size-cdf.h"
 #include "spraypoint-routing.h"
-#include "spraypoint.h"
+#include "spraypoint/spraypoint.h"
 
 #include "ns3/address.h"
 #include "ns3/bulk-send-application.h"
@@ -34,23 +34,23 @@ struct TcpExperimentConfig
     uint32_t nextHops;
     uint64_t seed;
     uint32_t hostsPerRouter;
-    uint32_t flows;  // stop generating after this many flows; 0 means no limit
-    double spanMs;   // stop generating after this much simulated time; 0 means no limit
-    double load;     // offered load as a fraction of total host link capacity
+    uint32_t flows; // stop generating after this many flows; 0 means no limit
+    double spanMs;  // stop generating after this much simulated time; 0 means no limit
+    double load;    // offered load as a fraction of total host link capacity
     std::string pattern;
     uint32_t smallBytes;
     uint32_t largeBytes;
-    double smallFraction;      // fraction of flows, not of bytes, that are small
-    std::string flowSizeCdf;   // replaces the two sizes above when set
-    uint32_t smallThreshold;   // flows up to this size are small; 0 means smallBytes
+    double smallFraction;    // fraction of flows, not of bytes, that are small
+    std::string flowSizeCdf; // replaces the two sizes above when set
+    uint32_t smallThreshold; // flows up to this size are small; 0 means smallBytes
     double linkGbps;
     uint32_t linkDelayNs;
     uint32_t fabricQueuePackets; // also used for router-to-host links
     uint32_t nicQueuePackets;
     uint32_t minRtoUs;
     uint32_t maxSimMs;
-    uint32_t releaseDelayUs;     // free a flow's memory this long after it finishes; 0 keeps it
-    std::string outputDir;       // write flows.csv, links.csv, and summary.txt here when set
+    uint32_t releaseDelayUs; // free a flow's memory this long after it finishes; 0 keeps it
+    std::string outputDir;   // write flows.csv, links.csv, and summary.txt here when set
 };
 
 // Runs TCP flows between hosts over a Spraypoint fabric and reports flow

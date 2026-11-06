@@ -1,6 +1,6 @@
 #include "tcp-experiment.h"
 
-#include "hash.h"
+#include "spraypoint/hash.h"
 
 #include "ns3/applications-module.h"
 #include "ns3/core-module.h"
@@ -166,8 +166,9 @@ TcpExperiment::BuildNetwork()
     stack.Install(m_hosts);
 
     PointToPointHelper link;
-    link.SetDeviceAttribute("DataRate",
-                            DataRateValue(DataRate(static_cast<uint64_t>(m_config.linkGbps * 1e9))));
+    link.SetDeviceAttribute(
+        "DataRate",
+        DataRateValue(DataRate(static_cast<uint64_t>(m_config.linkGbps * 1e9))));
     link.SetChannelAttribute("Delay", TimeValue(NanoSeconds(m_config.linkDelayNs)));
     link.SetQueue("ns3::DropTailQueue<Packet>",
                   "MaxSize",
@@ -569,9 +570,8 @@ TcpExperiment::PrintResults(std::ostream& out) const
         << " small-bytes=" << m_config.smallBytes << " large-bytes=" << m_config.largeBytes
         << " small-fraction=" << m_config.smallFraction << " min-rto-us=" << m_config.minRtoUs
         << " seed=" << m_config.seed << "\n"
-        << "settings pattern=" << m_config.pattern
-        << " span-ms=" << m_config.spanMs << " flow-size-cdf="
-        << (m_config.flowSizeCdf.empty() ? "none" : m_config.flowSizeCdf)
+        << "settings pattern=" << m_config.pattern << " span-ms=" << m_config.spanMs
+        << " flow-size-cdf=" << (m_config.flowSizeCdf.empty() ? "none" : m_config.flowSizeCdf)
         << " small-threshold=" << m_smallThreshold << " link-gbps=" << m_config.linkGbps
         << " link-delay-ns=" << m_config.linkDelayNs
         << " fabric-queue=" << m_config.fabricQueuePackets

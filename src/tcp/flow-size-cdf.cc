@@ -46,10 +46,9 @@ FlowSizeCdf::FlowSizeCdf(const std::string& path)
 uint32_t
 FlowSizeCdf::Sample(double u) const
 {
-    const auto upper =
-        std::find_if(m_points.begin(), m_points.end(), [u](const Point& point) {
-            return point.probability >= u;
-        });
+    const auto upper = std::find_if(m_points.begin(), m_points.end(), [u](const Point& point) {
+        return point.probability >= u;
+    });
     double bytes = m_points.back().bytes;
     if (upper == m_points.begin())
     {
@@ -58,8 +57,7 @@ FlowSizeCdf::Sample(double u) const
     else if (upper != m_points.end())
     {
         const auto& lower = *(upper - 1);
-        const auto fraction =
-            (u - lower.probability) / (upper->probability - lower.probability);
+        const auto fraction = (u - lower.probability) / (upper->probability - lower.probability);
         bytes = lower.bytes + fraction * (upper->bytes - lower.bytes);
     }
     return static_cast<uint32_t>(std::max(1.0, std::round(bytes)));

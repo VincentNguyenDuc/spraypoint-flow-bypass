@@ -1,13 +1,9 @@
 #include "checks.h"
 
-#include "flow-size-cdf.h"
-#include "hash.h"
+#include "spraypoint/hash.h"
 
 #include <algorithm>
 #include <atomic>
-#include <cmath>
-#include <filesystem>
-#include <fstream>
 #include <optional>
 #include <queue>
 #include <random>
@@ -397,34 +393,6 @@ SampleEdgeDisjointPaths(const Spraypoint& routing, uint32_t pairs, uint64_t seed
             .push_back(paths[k]);
     }
     return samples;
-}
-
-uint64_t
-CheckFlowSizeCdf(const std::string& path, std::vector<std::string>& examples)
-{
-    {
-        std::ofstream file(path);
-        file << "# test distribution\n\n100 0.5\n300 1\n";
-    }
-    const FlowSizeCdf cdf(path);
-    std::filesystem::remove(path);
-
-    uint64_t violations = 0;
-    const auto expect = [&](const std::string& name, double actual, double expected) {
-        if (std::abs(actual - expected) > 1e-9)
-        {
-            ++violations;
-            examples.push_back(name + " is " + std::to_string(actual) + ", expected " +
-                               std::to_string(expected));
-        }
-    };
-    expect("Sample(0)", cdf.Sample(0), 100);
-    expect("Sample(0.5)", cdf.Sample(0.5), 100);
-    expect("Sample(0.75)", cdf.Sample(0.75), 200);
-    expect("Sample(1)", cdf.Sample(1), 300);
-    // 0.5 of the mass at 100 bytes, and 0.5 spread evenly over 100 to 300.
-    expect("Mean()", cdf.Mean(), 150);
-    return violations;
 }
 
 } // namespace rng

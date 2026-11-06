@@ -1,7 +1,7 @@
 #ifndef RNG_CHECKS_H
 #define RNG_CHECKS_H
 
-#include "spraypoint.h"
+#include "spraypoint/spraypoint.h"
 
 #include <cstdint>
 #include <string>
@@ -37,10 +37,6 @@ EdgeDisjointSamples SampleEdgeDisjointPaths(const Spraypoint& routing,
                                             uint32_t pairs,
                                             uint64_t seed,
                                             unsigned threads);
-
-// Checks FlowSizeCdf's sampling and mean on a small distribution written to
-// path.  Returns the number of violations and fills examples with the first few.
-uint64_t CheckFlowSizeCdf(const std::string& path, std::vector<std::string>& examples);
 
 } // namespace rng
 

@@ -1,6 +1,6 @@
 #include "oversubscription.h"
 
-#include "hash.h"
+#include "spraypoint/hash.h"
 
 #include <algorithm>
 #include <cmath>

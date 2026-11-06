@@ -1,6 +1,6 @@
 #include "spraypoint-routing.h"
 
-#include "hash.h"
+#include "spraypoint/hash.h"
 
 #include "ns3/abort.h"
 #include "ns3/ipv4-route.h"

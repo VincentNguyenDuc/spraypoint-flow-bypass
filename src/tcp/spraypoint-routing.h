@@ -1,7 +1,7 @@
 #ifndef RNG_SPRAYPOINT_ROUTING_H
 #define RNG_SPRAYPOINT_ROUTING_H
 
-#include "spraypoint.h"
+#include "spraypoint/spraypoint.h"
 
 #include "ns3/ipv4-routing-protocol.h"
 

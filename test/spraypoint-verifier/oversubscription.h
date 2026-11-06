@@ -1,7 +1,7 @@
 #ifndef RNG_OVERSUBSCRIPTION_H
 #define RNG_OVERSUBSCRIPTION_H
 
-#include "spraypoint.h"
+#include "spraypoint/spraypoint.h"
 
 #include <cstdint>
 #include <vector>
