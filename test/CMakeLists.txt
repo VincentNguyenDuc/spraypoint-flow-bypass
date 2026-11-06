@@ -4,8 +4,5 @@
 add_subdirectory(flow-size-cdf)
 add_subdirectory(shortest-paths)
 add_subdirectory(spraypoint-verifier)
-
-if(BUILD_TCP_EXPERIMENT)
-  add_subdirectory(tcp-bypass)
-  add_subdirectory(tcp-experiment)
-endif()
+add_subdirectory(tcp-bypass)
+add_subdirectory(tcp-experiment)

@@ -24,7 +24,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how these fit together.
 ## Workflow
 
 ```bash
-cmake -B build                                 # configure; add -DBUILD_TCP_EXPERIMENT=OFF to skip ns-3
+cmake -B build                                 # configure
 cmake --build build --parallel                 # compile, into build/bin/
 ctest --test-dir build -L quick                # fast tests, in seconds
 ctest --test-dir build                         # all tests, including the full verifier

@@ -10,8 +10,6 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-option(BUILD_TCP_EXPERIMENT "Build the TCP experiment, which needs ns-3" ON)
-
 add_library(project_warnings INTERFACE)
 target_compile_options(project_warnings INTERFACE -Wall -Wextra)
 
