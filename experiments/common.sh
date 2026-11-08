@@ -1,5 +1,6 @@
 # Shared by the experiment scripts.  Source this file, call run_experiment once per
-# run, then call finish_runs.  Results go to experiments/results/<script name>/<run name>/.
+# run, then call finish_runs.  Results go to
+# experiments/results/<machine>/<batch>/<script name>/<run name>/: see batch.sh.
 #
 # Runs use the tcp-experiment program unless the script sets PROGRAM_NAME first.
 #
@@ -10,7 +11,8 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 EXPERIMENT=$(basename "$0" .sh)
-RESULTS=$ROOT/experiments/results/$EXPERIMENT
+source "$ROOT/experiments/batch.sh"
+RESULTS=$BATCH_DIR/$EXPERIMENT
 PROGRAM_NAME=${PROGRAM_NAME:-tcp-experiment}
 PROGRAM=$ROOT/build/bin/$PROGRAM_NAME
 JOBS=${JOBS:-1}
@@ -27,10 +29,11 @@ fi
 
 COMMIT=$(git rev-parse --short HEAD)
 # Only what affects results counts: running notebooks also changes tracked files.
-if [ -n "$(git status --porcelain -- src cmake CMakeLists.txt experiments/*.sh)" ]; then
+if [[ $CODE_COMMIT == *-dirty ]]; then
     COMMIT="$COMMIT (uncommitted changes)"
     echo "warning: the working tree has uncommitted changes" >&2
 fi
+echo "$EXPERIMENT: writing to ${RESULTS#"$ROOT/"}"
 
 case "$(uname)" in
     Darwin) TIME_ARGS=(-l) ;;

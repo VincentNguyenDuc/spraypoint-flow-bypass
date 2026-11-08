@@ -5,3 +5,6 @@ experiments/analysis/.venv/
 .ipynb_checkpoints/
 __pycache__/
 *.pyc
+
+# Server login for REMOTE.sh.
+.env

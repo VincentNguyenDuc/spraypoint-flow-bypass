@@ -26,8 +26,8 @@ flowchart TD
 - **TCP experiment (`src/tcp/`):** connects the core to ns-3. It builds the network, runs TCP flows over it, and records the results. Routers use the core's tables to forward real packets.
 - **TCP bypass (`src/tcp-bypass/`):** the same experiment, except that small flows can skip the spray step. It adds only that routing decision, so flows, TCP, and measurements stay the same as the baseline.
 - **Tests (`test/`):** check the layers from outside. The verifier compares the core with the paper, without ns-3, and other tests check the programs' behavior.
-- **Experiments (`experiments/`):** each script fixes the settings for one experiment, runs its program, and writes to `experiments/results/<script name>/`.
-- **Analysis (`experiments/analysis/`):** notebooks that read `experiments/results/`: one for the baseline, and one comparing it with the bypass.
+- **Experiments (`experiments/`):** each script fixes the settings for one experiment, runs its program, and writes to `experiments/results/<machine>/<batch>/<script name>/`.
+- **Analysis (`experiments/analysis/`):** notebooks that read one batch of `experiments/results/`: one for the baseline, and one comparing it with the bypass.
 
 ## Extending the experiment
 
@@ -60,10 +60,10 @@ flowchart LR
 
 - **Scripts (`NN-*.sh`):** each one is a complete, repeatable experiment, numbered in the order to run them and named for what it runs: `smoke` is a quick check, `small-sweep` is a fast sweep on a small network, and `load-sweep` is the larger measurement. To add an experiment, copy a script and change its settings.
 - **Shared logic (`common.sh`):** builds the program and runs the simulations, in parallel if asked. It skips finished runs, so an interrupted experiment continues where it stopped.
-- **Results (`results/<script name>/<run name>/`):** each run's data, plus the exact options, commit, and machine that produced it. Git ignores the contents.
-- **Analysis (`analysis/`):** notebooks that read the results, using whichever runs have finished.
+- **Results (`results/<machine>/<batch>/<script name>/<run name>/`):** each run's data, plus the exact options, commit, and machine that produced it. Git ignores the contents. `<machine>` is `local`, or `remote` for runs from `REMOTE.sh`. A batch is named `<date>_<time>_<code commit>`, where the code commit is the last one to change `src/`, `cmake/`, `CMakeLists.txt` or the numbered experiment scripts. Scripts keep adding to the newest batch for the same code, so a code change starts a new batch and old results never mix with new ones. `NEW_BATCH=1` starts one anyway. See `experiments/batch.sh`.
+- **Analysis (`analysis/`):** notebooks that read one batch, using whichever of its runs have finished.
 - **Workloads (`workloads/`):** published flow-size distributions that experiments can use.
 
 ## Comparing experiments
 
-The same seed and settings give every program the same topology and the same flows, so differences between runs come from the routing. To keep that true, sweeps that will be compared share their settings, as the load sweeps do through `experiments/03-load-sweep-settings.sh`. Compare runs from one platform only, because the same seed can give different flows on Mac and Linux.
+The same seed and settings give every program the same topology and the same flows, so differences between runs come from the routing. To keep that true, sweeps that will be compared share their settings, as the load sweeps do through `experiments/03-load-sweep-settings.sh`. Compare runs from one batch only: the same seed can give different flows on Mac and Linux, which is why each machine has its own results, and different code can give different results.

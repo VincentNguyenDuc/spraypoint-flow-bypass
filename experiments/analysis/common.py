@@ -1,4 +1,5 @@
-"""Loads experiment results from experiments/results/<experiment>/<run>/ for the notebooks."""
+"""Loads experiment results from one batch,
+experiments/results/<machine>/<batch>/<experiment>/<run>/, for the notebooks."""
 
 import os
 import re
@@ -10,12 +11,32 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
-RESULTS = Path(os.environ.get("RESULTS_DIR", ROOT / "experiments" / "results"))
+RESULTS_ROOT = ROOT / "experiments" / "results"
 
-# The sweep the notebooks analyze: 02-small-sweep or 03-load-sweep.
-SWEEP = os.environ.get("SWEEP", "02-small-sweep")
+# The sweep the notebooks analyze: 03-load-sweep, which keeps the full-scale design's
+# proportions, or 02-small-sweep, or 01-smoke for a quick check that the notebooks run,
+# though its runs are too short for tail numbers.
+SWEEP = os.environ.get("SWEEP", "03-load-sweep")
 BASELINE_EXPERIMENT = f"{SWEEP}-baseline"
 BYPASS_EXPERIMENT = f"{SWEEP}-bypass"
+
+
+def _find_batch():
+    """The batch to read: RESULTS_DIR if set, otherwise the newest batch with this sweep,
+    from the machine in RESULTS_MACHINE ("local" or "remote") if set, and the batch in
+    RESULTS_BATCH if set.  Batch names start with the date, so the newest sorts last."""
+    if "RESULTS_DIR" in os.environ:
+        return Path(os.environ["RESULTS_DIR"])
+    machine = os.environ.get("RESULTS_MACHINE", "*")
+    batch = os.environ.get("RESULTS_BATCH", "*")
+    found = [path for path in RESULTS_ROOT.glob(f"{machine}/{batch}") if (path / BASELINE_EXPERIMENT).is_dir()]
+    if not found:
+        return RESULTS_ROOT / "no-batch-found"
+    return max(found, key=lambda path: (path.name, path.parent.name))
+
+
+RESULTS = _find_batch()
+MACHINE, BATCH = RESULTS.parent.name, RESULTS.name
 
 # Flows starting this close to either end of the run are left out by default: the
 # network starts empty and drains at the end, so they see less load.
@@ -31,6 +52,11 @@ MODES = ["none", "adjacent", "shortest"]
 MODE_NAMES = {"none": "No bypass", "adjacent": "Adjacent bypass", "shortest": "Shortest-path bypass"}
 MODE_COLORS = {"none": "#2a78d6", "adjacent": "#eb6834", "shortest": "#1baf7a"}
 MODE_MARKERS = {"none": "o", "adjacent": "s", "shortest": "^"}
+SMALL_CLASSES = ["small_adjacent", "small_other"]
+
+# The handshake timeout is this many minimum RTOs: see ConnTimeout in
+# src/tcp/tcp-experiment.cc.
+CONN_TIMEOUT_RTOS = 10
 
 
 @dataclass
@@ -56,6 +82,7 @@ class Run:
 
 def _parse_summary(text):
     summary = {}
+    summary["min_rto_us"] = float(re.search(r"min-rto-us=(\S+)", text)[1])
     match = re.search(r"completed=(\d+)/(\d+) .*sim_end_us=(\S+)", text)
     summary["completed"], summary["flows"] = int(match[1]), int(match[2])
     summary["sim_end_us"] = float(match[3])
@@ -139,9 +166,122 @@ def load_flows(runs, trim=TRIM_FRACTION):
             ["small_adjacent", "small_other"],
             "large",
         )
+        flows["goodput_gbps"] = flows["bytes"] * 8 / (flows["fct_us"] * 1e3)
+        flows["timeout"] = _timeouts(flows, run.summary["min_rto_us"])
         flows["load"], flows["seed"], flows["bypass"] = run.load, run.seed, run.bypass
         frames.append(flows)
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+def _timeouts(flows, min_rto_us):
+    """Which timeout, if any, a small flow waited for: "handshake" for a lost SYN or
+    SYN-ACK, "data" for a retransmission timeout, or "none".
+
+    An FCT of at least the minimum RTO means a timeout, since a small flow that loses
+    nothing finishes in well under a millisecond: in the sweeps none take between 0.5
+    and 1 ms.  Large flows can take longer than an RTO from queueing alone, so they get
+    "unknown" unless they waited for the handshake timeout."""
+    fct = flows["fct_us"]
+    small = flows["small"] == 1
+    return np.select(
+        [~np.isfinite(fct), fct >= CONN_TIMEOUT_RTOS * min_rto_us, ~small, fct >= min_rto_us],
+        ["unfinished", "handshake", "unknown", "data"],
+        "none",
+    )
+
+
+def timeout_table(flows, by):
+    """For small flows: the percentage that waited for each kind of timeout, and FCT
+    percentiles in microseconds of those that did not, which is the queueing alone."""
+
+    def describe(group):
+        timeout = group["timeout"]
+        clean = group.loc[timeout == "none", "fct_us"].to_numpy()
+        return pd.Series(
+            {
+                "flows": len(group),
+                "data_timeout_pct": 100 * (timeout == "data").mean(),
+                "handshake_timeout_pct": 100 * (timeout == "handshake").mean(),
+                "any_timeout_pct": 100 * timeout.isin(["data", "handshake", "unfinished"]).mean(),
+                "clean_p50": percentile(clean, 0.50) if len(clean) else np.nan,
+                "clean_p99": percentile(clean, 0.99) if len(clean) else np.nan,
+                "clean_max": clean.max() if len(clean) else np.nan,
+            }
+        )
+
+    small = flows[flows["class"].isin(SMALL_CLASSES)]
+    table = small.groupby(by, sort=True).apply(describe, include_groups=False)
+    return table.astype({"flows": int})
+
+
+def seed_change_table(flows):
+    """How consistently each bypass mode changes small flows, seed by seed: each seed's
+    bypass run against the baseline run with the same flows.  Timeout changes are in
+    percentage points, since a baseline can have none; FCT changes are in percent."""
+    per_seed = timeout_table(flows, ["class", "load", "seed", "bypass"])
+    baseline = per_seed.xs("none", level="bypass")
+    rows = []
+    for mode in [m for m in MODES if m != "none" and m in per_seed.index.get_level_values("bypass")]:
+        other = per_seed.xs(mode, level="bypass")
+        change = pd.DataFrame(
+            {
+                "timeout_pts": other["any_timeout_pct"] - baseline["any_timeout_pct"],
+                "fewer_timeouts": other["any_timeout_pct"] < baseline["any_timeout_pct"],
+                "clean_p50_pct": 100 * (other["clean_p50"] / baseline["clean_p50"] - 1),
+                "clean_p99_pct": 100 * (other["clean_p99"] / baseline["clean_p99"] - 1),
+            }
+        )
+        grouped = change.groupby(["class", "load"])
+        table = pd.DataFrame(
+            {
+                "seeds": grouped.size(),
+                "seeds_fewer_timeouts": grouped["fewer_timeouts"].sum(),
+                "timeout_pts_mean": grouped["timeout_pts"].mean(),
+                "timeout_pts_min": grouped["timeout_pts"].min(),
+                "timeout_pts_max": grouped["timeout_pts"].max(),
+                "clean_p50_pct_mean": grouped["clean_p50_pct"].mean(),
+                "clean_p99_pct_mean": grouped["clean_p99_pct"].mean(),
+                "clean_p99_pct_min": grouped["clean_p99_pct"].min(),
+                "clean_p99_pct_max": grouped["clean_p99_pct"].max(),
+            }
+        )
+        rows.append(table.assign(bypass=mode).set_index("bypass", append=True))
+    return pd.concat(rows).sort_index().astype({"seeds": int, "seeds_fewer_timeouts": int})
+
+
+def mean_hops_table(runs):
+    """Mean fabric hops of delivered packets, including ACKs, by class, mode and load."""
+    paths = path_table(runs)
+    paths["weighted"] = paths["hops"] * paths["fraction"]
+    per_run = paths.groupby(["class", "bypass", "load", "seed"])["weighted"].sum()
+    return per_run.groupby(["class", "bypass", "load"]).mean().unstack("load")
+
+
+def goodput_table(flows, by):
+    """Large-flow goodput in Gbps: each flow's bytes over its FCT.  The low percentiles
+    are the slowest flows, which a hotspot would hurt first."""
+    large = flows[flows["class"] == "large"]
+
+    def describe(group):
+        goodput = group["goodput_gbps"].to_numpy()
+        return pd.Series(
+            {
+                "flows": len(goodput),
+                "mean": goodput.mean(),
+                "p50": percentile(goodput, 0.50),
+                "p10": percentile(goodput, 0.10),
+                "p1": percentile(goodput, 0.01),
+            }
+        )
+
+    table = large.groupby(by, sort=True).apply(describe, include_groups=False)
+    return table.astype({"flows": int})
+
+
+def traffic_mix(flows, by):
+    """Each class's share of flows and of bytes."""
+    totals = flows.groupby(list(by) + ["class"])["bytes"].agg(flows="count", bytes="sum")
+    return totals / totals.groupby(list(by)).transform("sum")
 
 
 def percentile(values, q):
@@ -195,6 +335,42 @@ def link_table(links, by):
         share_of_links_filled=("filled", "mean"),
         mean_queue_packets=("mean_queue_packets_during_arrivals", "mean"),
     )
+
+
+def link_changes(links):
+    """Each bypass run's links paired with the same link in the baseline run at the same
+    load and seed.  The topology depends only on the seed, so a link is the same link in
+    every mode."""
+    keys = ["load", "seed", "from", "to"]
+    columns = ["utilization", "filled", "sent_small_bytes", "max_queue_packets"]
+    baseline = links[links["bypass"] == "none"][keys + columns]
+    paired = links[links["bypass"] != "none"][keys + ["bypass"] + columns].merge(
+        baseline, on=keys, suffixes=("", "_baseline")
+    )
+    paired["utilization_change"] = paired["utilization"] - paired["utilization_baseline"]
+    return paired
+
+
+def hotspot_table(paired, by, top_share=0.01):
+    """The links the bypass made busiest: the top_share of links by utilization gain.
+    If the bypass creates hotspots, these links are busier than the baseline's busiest
+    and their queues fill more often than before."""
+
+    def describe(group):
+        top = group.nlargest(max(1, round(top_share * len(group))), "utilization_change")
+        return pd.Series(
+            {
+                "links_busier": (group["utilization_change"] > 0.01).mean(),
+                "links_quieter": (group["utilization_change"] < -0.01).mean(),
+                "largest_gain": group["utilization_change"].max(),
+                "top_utilization_before": top["utilization_baseline"].mean(),
+                "top_utilization_after": top["utilization"].mean(),
+                "top_filled_before": top["filled_baseline"].mean(),
+                "top_filled_after": top["filled"].mean(),
+            }
+        )
+
+    return paired.groupby(by, sort=True).apply(describe, include_groups=False)
 
 
 def fan_in_table(links, by):
@@ -271,12 +447,12 @@ def tail_curve(values):
     return values[finite], share_slower[finite]
 
 
-def plot_metric_by_mode(flows, metric, title):
-    """A percentile against load, one line per bypass mode and one panel per flow class.
-    Lines show the mean across seeds, and bars show the lowest and highest seed."""
-    per_seed = fct_table(flows, ["class", "bypass", "load", "seed"])[metric].reset_index()
-    figure, axes = plt.subplots(1, len(CLASSES), figsize=(11, 3.4), sharex=True)
-    for axis, flow_class in zip(axes, CLASSES):
+def plot_metric_by_mode(flows, metric, ylabel, table=fct_table, classes=CLASSES):
+    """A metric from table against load, one line per bypass mode and one panel per flow
+    class.  Lines show the mean across seeds, and bars show the lowest and highest seed."""
+    per_seed = table(flows, ["class", "bypass", "load", "seed"])[metric].reset_index()
+    figure, axes = plt.subplots(1, len(classes), figsize=(3.7 * len(classes), 3.4), sharex=True)
+    for axis, flow_class in zip(np.atleast_1d(axes), classes):
         for mode in MODES:
             data = per_seed[(per_seed["class"] == flow_class) & (per_seed["bypass"] == mode)]
             if data.empty:
@@ -294,7 +470,8 @@ def plot_metric_by_mode(flows, metric, title):
         axis.set_title(CLASS_NAMES[flow_class])
         axis.set_xlabel("Offered load")
         axis.set_ylim(bottom=0)
-    axes[0].set_ylabel(f"{title} (µs)")
+    axes = np.atleast_1d(axes)
+    axes[0].set_ylabel(ylabel)
     axes[0].legend()
     figure.tight_layout()
     return figure

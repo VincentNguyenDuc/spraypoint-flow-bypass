@@ -18,9 +18,11 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how these fit together.
 - `src/tcp/`: the TCP experiment
 - `src/tcp-bypass/`: the TCP bypass, built on `src/tcp/`
 - `test/`: one folder per test, including the verifier
-- `experiments/`: one script per experiment, writing to `experiments/results/<script name>/`
-- `experiments/analysis/`: notebooks that read `experiments/results/`
+- `experiments/`: one script per experiment, writing to `experiments/results/<machine>/<batch>/<script name>/`
+- `experiments/analysis/`: notebooks that read one batch of `experiments/results/`
+- [ANALYSIS.md](ANALYSIS.md): what the results show so far
 - `REPRODUCE.sh`: runs every step, from building to the analysis
+- `REMOTE.sh`: runs `REPRODUCE.sh` on a server over SSH
 - `cmake/Ns3.cmake`: fetches and builds ns-3
 
 ## Experiments
@@ -60,7 +62,8 @@ cmake --build build --target format            # format the C++ code before comm
 ```
 
 - **Reproduce an experiment:** run its script. It builds what it needs, and rerunning skips finished runs, so an interrupted experiment picks up where it stopped.
-- **Analyze results:** run `python3 -m venv experiments/analysis/.venv && experiments/analysis/.venv/bin/pip install -r experiments/analysis/requirements.txt` once, then `experiments/analysis/.venv/bin/jupyter lab experiments/analysis/`. The notebooks use whatever runs have finished.
+- **Analyze results:** run `python3 -m venv experiments/analysis/.venv && experiments/analysis/.venv/bin/pip install -r experiments/analysis/requirements.txt` once, then `experiments/analysis/.venv/bin/jupyter lab experiments/analysis/`. The notebooks use whatever runs have finished in the newest batch with the sweep they analyze, `03-load-sweep` unless `SWEEP` picks another; set `RESULTS_MACHINE` and `RESULTS_BATCH` to pick another batch.
+- **Run on a server:** copy `.env.example` to `.env` and fill in the login, then run `./REMOTE.sh start`. It sends the current commit and runs `./REPRODUCE.sh` there, which keeps going after you disconnect. `./REMOTE.sh status` or `logs` shows its progress, and `./REMOTE.sh fetch` copies the results into `experiments/results/remote/`. The server needs `git`, `cmake`, `make`, a C++ compiler, and `python3` with `venv`, and password logins need `sshpass` locally (`brew install sshpass`).
 - **Add an experiment:** copy a script in `experiments/` and change its settings.
 - **Add a test:** create `test/<name>/` with a `CMakeLists.txt`, and add it to `test/CMakeLists.txt`.
 - **Run with other settings:** pass options to a program in `build/bin/`. `--PrintHelp` lists the options of `tcp-experiment` and `tcp-bypass`, and `--help` lists those of `spraypoint-verifier`.
