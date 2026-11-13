@@ -1,6 +1,6 @@
 # CSE 561: Shortest-Path Bypass for Small Flows in Spraypoint
 
-This project tests whether routing small flows on shortest paths, instead of spraying them, lowers their tail latency on the fabric from *RNG: Flat Datacenter Networks at Scale*, and what that costs other traffic. See the [proposal](PROJECT_PROPOSAL.md).
+This project tests whether routing small flows on shortest paths, instead of spraying them, lowers their tail latency on the fabric from *RNG: Flat Datacenter Networks at Scale*, and what that costs other traffic. See the [proposal](docs/PROJECT_PROPOSAL.md).
 
 The repository has three programs:
 
@@ -12,7 +12,7 @@ The first CMake configure downloads, builds, and installs the pinned official ns
 
 ## Structure
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for how these fit together.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for how these fit together.
 
 - `src/spraypoint/`: core topology and routing tables, shared by all programs
 - `src/tcp/`: the TCP experiment
@@ -20,7 +20,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how these fit together.
 - `test/`: one folder per test, including the verifier
 - `experiments/`: one script per experiment, writing to `experiments/results/<machine>/<batch>/<script name>/`
 - `experiments/analysis/`: notebooks that read one batch of `experiments/results/`
-- [ANALYSIS.md](ANALYSIS.md): what the results show so far
+- `docs/`: the proposal, [architecture](docs/ARCHITECTURE.md), [results so far](docs/ANALYSIS.md), [models of the bypass](docs/bypass-modelling.tex), [verification against the paper](docs/VERIFICATION.md), the TODO list, and course feedback
 - `REPRODUCE.sh`: runs every step, from building to the analysis
 - `REMOTE.sh`: runs `REPRODUCE.sh` on a server over SSH
 - `cmake/Ns3.cmake`: fetches and builds ns-3
@@ -39,7 +39,7 @@ Keep this table in step with the scripts in `experiments/`, which are the source
 
 `06-permutation` sends each router's traffic only to one partner router, and sweeps the small flows' size, 10, 27.8 and 47.6 KB, so that they carry 8%, 20% and 30% of the bytes.
 
-`05-bypass-model` is not a simulation. It checks the models in [BYPASS_MODELLING.md](BYPASS_MODELLING.md) against the routing tables with `bypass-model`, at 256 routers of degree 16 and 1,000 of degree 64, for seeds 561–563.
+`05-bypass-model` is not a simulation. It checks the models in [docs/bypass-modelling.tex](docs/bypass-modelling.tex) against the routing tables with `bypass-model`, at 256 routers of degree 16 and 1,000 of degree 64, for seeds 561–563.
 
 All simulations share these settings, except where noted above:
 
@@ -73,7 +73,7 @@ cmake --build build --target format            # format the C++ code before comm
 ```
 
 - **Reproduce an experiment:** run its script. It builds what it needs, and rerunning skips finished runs, so an interrupted experiment picks up where it stopped.
-- **Analyze results:** run `python3 -m venv experiments/analysis/.venv && experiments/analysis/.venv/bin/pip install -r experiments/analysis/requirements.txt` once, then `experiments/analysis/.venv/bin/jupyter lab experiments/analysis/`. The notebooks use whatever runs have finished in the newest batch with the sweep they analyze, `03-load-sweep` unless `SWEEP` picks another; set `RESULTS_MACHINE` and `RESULTS_BATCH` to pick another batch.
+- **Analyze results:** run `python3 -m venv experiments/analysis/.venv && experiments/analysis/.venv/bin/pip install -r experiments/analysis/requirements.txt` once, then `experiments/analysis/.venv/bin/jupyter lab experiments/analysis/`. The notebooks use whatever runs have finished in the newest batch with the sweep they analyze, `03-load-sweep` unless `SWEEP` picks another, such as `04-oversubscription`, where the tables compare hosts per router instead of loads; set `RESULTS_MACHINE` and `RESULTS_BATCH` to pick another batch.
 - **Run on a server:** copy `.env.example` to `.env` and fill in the login, then run `./REMOTE.sh start`. It sends the current commit and runs `./REPRODUCE.sh` there, which keeps going after you disconnect. `./REMOTE.sh status` or `logs` shows its progress, and `./REMOTE.sh fetch` copies the results into `experiments/results/remote/`. The server needs `git`, `cmake`, `make`, a C++ compiler, and `python3` with `venv`, and password logins need `sshpass` locally (`brew install sshpass`).
 - **Add an experiment:** copy a script in `experiments/` and change its settings.
 - **Add a test:** create `test/<name>/` with a `CMakeLists.txt`, and add it to `test/CMakeLists.txt`.

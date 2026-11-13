@@ -1,6 +1,6 @@
 # Settings shared by the permutation sweeps, so that their results can be compared.
 #
-# Checks Model 3 of BYPASS_MODELLING.md below and around saturation.  Every router
+# Checks Model 3 of docs/bypass-modelling.tex below and around saturation.  Every router
 # sends only to its partner in a random matching, the same matching as matching 0 of
 # 05-bypass-model.sh, so the flow-level predictions line up pair by pair.  On the
 # 03-load-sweep network, each router offers load x 4 / 16 of its full fabric rate, so

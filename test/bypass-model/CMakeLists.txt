@@ -1,4 +1,4 @@
-# Checks the bypass models in BYPASS_MODELLING.md against the routing tables: path
+# Checks the bypass models in docs/bypass-modelling.tex against the routing tables: path
 # lengths, edge-disjoint shortest paths, and oversubscription as the bypassed share
 # grows.  It needs no ns-3.
 find_package(Threads REQUIRED)

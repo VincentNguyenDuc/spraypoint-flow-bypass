@@ -1,0 +1,319 @@
+% Models of the Spraypoint small-flow bypass, checked against the routing tables.
+% Build from the project folder:  latexmk -pdf -outdir=docs/build docs/bypass-modelling.tex
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,tabularx,array}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=0.25em,topsep=0.25em}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+% File names, which may break at / and . to fit the line.
+\newcommand{\file}[1]{\path{#1}}
+\newcommand{\SigmaMu}{\Sigma\mu}
+
+\title{Modelling the Spraypoint small-flow bypass}
+\author{Vincent Nguyen}
+\date{November 13, 2026}
+
+\begin{document}
+\maketitle
+
+\section{Summary}
+
+We can model three things about the bypass analytically, by extending §7 and Appendices E--G of the RNG paper~\cite{rng}. Latency, queueing and burstiness are left to the ns-3 simulation.
+
+We checked each model against our actual routing tables with \file{bypass-model} (\file{experiments/05-bypass-model.sh}). That program computes path lengths, path counts and worst-case throughput directly, without simulating packets. The numbers below are from seed 561, with one random permutation at the paper's scale and 10 at ours. The full run (3 seeds, 10 permutations each) is in progress.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}>{\hsize=0.8\hsize}L c >{\hsize=1.4\hsize}L >{\hsize=0.8\hsize}L@{}}
+\toprule
+Question & Model & Headline at the paper's defaults & Checked \\
+\midrule
+Path length for small flows & 1 & Mean 3.61 hops $\to$ 1.95 with the bypass & Yes, exact \\
+Edge-disjoint paths & 2 & Spraypoint $\approx 55$ per pair; bypass $c = 1$ (adjacent), $\approx 4.1$ (2-hop) & Yes \\
+Worst-case throughput, ideal split & 3 & Free while $f < r/d \approx 5\%$, then $r = f d / c$ & Yes, exact \\
+Worst-case throughput, ECMP & 3 & $r \approx 12\,(1-f) + f d / c$ & Yes, with the measured baseline \\
+Small-flow FCT and tail latency & --- & --- & ns-3 only \\
+Queueing below full load, bursts & --- & --- & ns-3 only \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Three things changed when we checked:
+
+\begin{enumerate}
+  \item \textbf{Spraypoint with plain ECMP is about $4\times$ worse than the paper's number.} Under a worst-case permutation the busiest link carries 12 times its capacity, not 3.25. Both numbers use the same paths. The paper's 3.25 assumes traffic is split across them perfectly; ECMP splits evenly at each hop and overloads one link into each destination (Section~\ref{sec:why-ecmp}).
+  \item \textbf{Pairs with a single shortest path set the knee, as predicted:} $f \approx 5\%$ at the paper's scale.
+  \item \textbf{Our 256-router simulation network is in a different regime.} Its knee is at about 20\% for the adjacent bypass, and 10--20\% for the shortest-path bypass. There, pairs with one shortest path are common and can share a link, which the model doesn't account for (Section~\ref{sec:our-scale}).
+\end{enumerate}
+
+The paper's own models are reused unchanged. Everything about the bypass is our derivation.
+
+\section{Setup}
+
+One unit of capacity is one fabric link. Defaults are the paper's: $n = 1000$, $d = 64$, $p = 4$, $h = 2$, so $\ell = 1$.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l L l@{}}
+\toprule
+Symbol & Meaning & Default \\
+\midrule
+$n$ & Routers (one ToR per rack) & 1000 \\
+$d$ & Fabric links per router & 64 \\
+$p$ & Waypoints each node picks when building the next level & 4 \\
+$h$ & Next hops each node keeps toward $t$ & 2 \\
+$\ell$ & Waypoint levels above WP0, $\ell = \max(1, \lceil \log_p (n / 2d^2) \rceil)$ & 1 \\
+$\mu_i$ & Share of a flow that fits on $i$-hop paths (Model 7.3) & 0.064, 0.131, 0.111, $\approx 0$ \\
+$\SigmaMu$ & $\mu_2 + \mu_3 + \mu_4 + \mu_5$; oversubscription $\approx 1/\SigmaMu$ & 0.306 (3.27:1) \\
+$X_{\mathrm{sp}}$ & Worst-case rate per pair under Spraypoint, $d \cdot \SigmaMu$ & $\approx 19.6$ links \\
+$f$ & Share of a pair's bytes in small (bypassed) flows & swept 0--30\% \\
+$c$ & Edge-disjoint shortest paths for a pair & 1 (adjacent), $\approx 4.1$ (2-hop) \\
+$r$ & Oversubscription: in the worst case each router can send $1/r$ of its full rate & 3.25 in the paper \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Assumptions, the same as the paper's:
+
+\begin{enumerate}
+  \item The fabric is a uniform random $d$-regular graph.
+  \item Worst-case traffic is a permutation: every router sends to one partner at once~\cite{namyar}.
+  \item $n$ is large and $d \ll n$.
+\end{enumerate}
+
+Our added assumptions for the bypass:
+
+\begin{enumerate}[resume]
+  \item Small flows take a shortest path, with ECMP over ties, and keep their class end to end, using their own routing table.
+  \item Spraypoint's tables are unchanged. Large flows use them exactly as in the paper.
+  \item Every pair has the same $f$.
+\end{enumerate}
+
+\section{Model 1: Path length}
+
+The bypass cuts a small flow's mean path from 3.61 hops to 1.95. Spraypoint's own path lengths don't change, because the bypass is a separate lane.
+
+\paragraph{Spraypoint (paper, Theorem E.4 / Model 7.2).} Build rings around $t$: WP0 ($d$ routers), WP1 ($\approx p d$), the inner ring, and the outer ring. A sprayed packet's hop count depends on which ring the spray lands in:
+\[
+P(L = i) \approx
+\begin{cases}
+  1/n & i = 1 \\
+  p^{\,i-2}\, d/n & 2 \le i \le \ell + 2 \\
+  \text{rest} & i = \ell + 3 \\
+  e^{-p^{\ell} d^2 / n} & i = \ell + 4
+\end{cases}
+\]
+
+\paragraph{Bypass (ours, Model B.1).} Small flows go straight to $t$, so the hop count is the shortest distance. $s$ is farther than $k$ hops away only if all $d$ of its links miss $t$'s $(k-1)$-hop neighborhood, which has about $d^{k-1}$ routers:
+\[
+P(L_{\text{byp}} \le k) \approx 1 - e^{-d^k / n}
+\]
+
+\begin{center}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Hops & Spraypoint, model & Spraypoint, measured & Bypass, model & Bypass, measured \\
+\midrule
+1 & 0.1\% & 0.1\% & 6.2\% & 6.4\% \\
+2 & 6.4\% & 6.3\% & 92.1\% & 92.4\% \\
+3 & 25.6\% & 25.6\% & 1.7\% & 1.2\% \\
+4 & 67.9\% & 68.0\% & $\approx 0$ & 0 \\
+\midrule
+\textbf{Mean} & \textbf{3.61} & \textbf{3.62} & \textbf{1.95} & \textbf{1.95} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The bypass length depends only on $n$ and $d$; $p$, $h$ and $\ell$ drop out. The adjacent-only variant helps just 6.4\% of pairs, so its mean falls only to about 3.45. Across all traffic, the network sees the byte-weighted blend $(1 - f) \cdot 3.61 + f \cdot 1.95$.
+
+\textbf{In the simulation too.} On our 256-router network the model predicts 2.39 hops for small flows between non-adjacent routers. The graph gives 2.36, and ns-3 measured 2.36 in \file{03-load-sweep}.
+
+\section{Model 2: Number of edge-disjoint paths}
+
+Spraypoint gives every pair about 55 separate lanes. The bypass gives small flows only $c$ lanes, and $c$ is smallest for the closest pairs.
+
+\paragraph{Spraypoint (paper, Appendix F / Model 7.1).} Each lane needs its own front door into $t$, one of $t$'s $d$ neighbors. So the lane count is a matching: pair $s$'s sprayed neighbors with different doors. Each sprayed neighbor reaches $h$ random doors, so it's balls into bins, and about $e^{-h}$ of the doors stay empty:
+\[
+\mathrm{EDP}(s, t) \approx
+\begin{cases}
+  d\,(1 - e^{-h}) & s \notin \mathrm{Nbr}(t) \\
+  \min\!\big(d - p,\ d\,(1 - e^{-(1 - p/d) h})\big) & s \in \mathrm{Nbr}(t)
+\end{cases}
+\]
+At the defaults that's about 55 for a typical pair and about 54 for an adjacent pair. Our verifier measures a median of 59 (non-adjacent) and 58 (adjacent), so the formula runs a little low (\file{docs/VERIFICATION.md}).
+
+\paragraph{Bypass (ours, Model B.2).} The bypass uses only shortest paths, so $c$ is the number of edge-disjoint shortest paths:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l r L L@{}}
+\toprule
+Pair distance & Share of pairs & $c$, model & $c$, measured \\
+\midrule
+1 (adjacent) & 6.4\% & 1 & 1 \\
+2 & 92\% & Poisson$(d^2/n)$ given $\ge 1$, mean $\approx 4.1$; 6.9\% have $c = 1$, 14.2\% $c = 2$ & 6.3\% have $c = 1$, 14.0\% $c = 2$ \\
+3 & 1.2\% & up to $\approx 63$ & 57 to 63, mean 62 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{How the two interact.} The bypass adds no links, so Spraypoint's lane count is unchanged. For a 2-hop pair, the bypass paths $s \to w \to t$ \emph{are} Spraypoint lanes; small flows just take $c$ of the pair's own lanes. \textbf{For one pair on its own, the bypass costs nothing.} The cost only appears when other pairs need the same links, which is Model 3.
+
+\section{Model 3: Oversubscription with the bypass}
+
+\paragraph{Paper (Appendix G / Model 7.3).} Everyone sends to a partner. Fill 2-hop paths first, then 3-, 4- and 5-hop paths with the capacity that's left, and divide by how many paths share each link. The result is $r \approx 1/(\mu_2 + \mu_3 + \mu_4 + \mu_5) \approx 3.27$. Lemma G.2 adds a lower bound: $r$ is at least the average hop count, because a byte on an $i$-hop path uses $i$ links.
+
+The paper checks this against a linear program that finds the best way to split each pair's traffic across its Spraypoint paths (§9.1: ``the LP minimizes $r$ under link capacity constraints''). It gets 3.25, and our solver gets 3.12--3.29. That is the best possible split, not what ECMP does.
+
+\paragraph{Bypass, ideal split (ours).} The greedy fill already uses each pair's 2-hop paths ($\mu_2 d = d^2/n$ of them) at full capacity, and those are exactly the bypass's paths. So small flows take seats that were going to be filled anyway. The only new limit is that the bypassed bytes have to fit on $c$ links:
+\[
+r_{\text{ideal}} = \max\!\Big(\frac{1}{\SigmaMu},\ \frac{f d}{c}\Big),
+\qquad \text{free while } f < \frac{c}{d\, \SigmaMu}
+\]
+\textbf{Checked: exact.} With the best split, $r$ stays at 3.1--3.3 up to $f = 5\%$, then becomes $64 f$ for both bypasses: 6.4 at 10\%, 12.8 at 20\% and 19.2 at 30\%.
+
+\paragraph{Bypass, ECMP (ours, what ns-3 does).} Hashing spreads traffic evenly at every hop instead of choosing the best split. Every link carries background load, so the bypass load adds to it:
+\[
+r_{\text{ECMP}} \approx O_{\text{ecmp}}\,(1 - f) + \frac{f d}{c},
+\qquad O_{\text{ecmp}} \approx 12 \ \text{(measured)}
+\]
+The first version of this model used $O_{\text{ecmp}} \approx 3.6$, the average hop count, which is only a lower bound. The measured value is 12.0 at the paper's scale and 11.75 at ours. With 12, the formula matches within 2\%: it predicts 17.2 at $f = 10\%$, and we measure 17.2 (shortest) and 17.4 (adjacent). In the ideal world the two parts take a max; with hashing they add.
+
+\paragraph{Throughput kept, relative to no bypass,} at the paper's scale:
+
+\begin{center}
+\begin{tabular}{@{}rcccc@{}}
+\toprule
+& \multicolumn{2}{c}{Adjacent pair ($c = 1$)} & \multicolumn{2}{c}{2-hop pair ($c \approx 4.1$), model} \\
+\cmidrule(lr){2-3} \cmidrule(l){4-5}
+$f$ & Ideal: model / measured & ECMP: model / measured & Ideal & ECMP \\
+\midrule
+1\% & 100\% / 100\% & 96\% / 96\% & 100\% & 100\% \\
+5\% & 100\% / 100\% & 82\% / 82\% & 100\% & 98\% \\
+10\% & 51\% / 50\% & 70\% / 69\% & 100\% & 97\% \\
+20\% & 26\% / 25\% & 54\% / 53\% & 100\% & 94\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The shortest-path bypass measures the same as the adjacent columns, because its weakest pairs also have $c = 1$. Under ECMP the bypass costs less \emph{relative} to no bypass than the first version of this table said (82\% kept at $f = 5\%$, not 54\%). That's only because ECMP's baseline is already $4\times$ worse than the ideal.
+
+Knees in the ideal model: $f \approx 5.1\%$ for $c = 1$ and $f \approx 20.9\%$ for $c \approx 4.1$.
+
+\paragraph{The weak-pair caveat.} The worst pair sets $r$. Every adjacent pair has $c = 1$, and so do about 6\% of 2-hop pairs. So the realistic network-wide knee is about 5\%, not 21\%. Widening the bypass to ``any path of length $\le 2$'' gives adjacent pairs $c \approx 5$, but it doesn't help 2-hop pairs with one common neighbor.
+
+\subsection{Why ECMP is far from the ideal}
+\label{sec:why-ecmp}
+
+Every byte for destination $t$ enters it over one of $t$'s $d$ links. A pair sends $d$ units, so a perfect split puts 1 unit on each of those links. ECMP doesn't:
+
+\begin{itemize}
+  \item The source spreads its traffic evenly over its $d$ neighbors, and each router after that splits evenly over its $h = 2$ next hops.
+  \item But $t$'s neighbors aren't picked equally often as next hops. Some sit below many upstream routers, others below almost none.
+  \item Each of $t$'s neighbors has only one link to $t$, so whatever piles up there must cross that one link.
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+& $n = 1000$, $d = 64$ & $n = 256$, $d = 16$ \\
+\midrule
+Busiest link in the permutation & 12.0 & 11.5 \\
+\quad of which one pair's own traffic & 10.25 & 7.0 \\
+One pair alone, its busiest link into $t$: median over pairs & 3.0 & 2.75 \\
+One pair alone, its busiest link into $t$: worst pair & 10.25 & 7.5 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+So the overload isn't pairs colliding. Each pair overloads one of its own last hops, even with no other traffic. An even split at each hop is not an even split over paths.
+
+The paper doesn't claim ECMP reaches 3.25. It relies on multipath transport to close the gap: ``The sender splits data across tens of `flowlets' that use different paths\ldots\ The sender uses latency as one of the signals when picking which flowlet to use'' (§8). Weighted ECMP, which splits in proportion to how much traffic each next hop can take, is another way to close it.
+
+\subsection{At our simulation's scale}
+\label{sec:our-scale}
+
+Our ns-3 network ($n = 256$, $d = 16$) keeps the paper's path lengths and share of adjacent pairs, but $d^2/n = 1$ instead of 4.1. That changes Model 3:
+
+\begin{itemize}
+  \item \textbf{Single-path pairs are common.} 62\% of 2-hop pairs have $c = 1$, against 6\% at the paper's scale. The Poisson model predicts 58\%.
+  \item \textbf{The knee moves to about 20\%,} because $r/d = 3.3/16$ is four times the paper's $3.27/64$. With the best split, the adjacent bypass is free up to $f = 20\%$ and costs exactly $16 f = 4.8$ at 30\%.
+  \item \textbf{The shortest-path bypass breaks earlier than the model says.} It gives 6.4 at $f = 20\%$, where the model predicts 3.3. Two pairs with one shortest path each share a link, so it carries $2 f d$. The model looks at each pair on its own, so it misses this. At the paper's scale single-path pairs are rare, and we saw no collisions.
+  \item \textbf{ECMP stays near its baseline longer:} 11.75 with no bypass, 12.2 at $f = 10\%$ and 14.1 at 20\% (shortest). With $d = 16$, a pair's bypass load $f d$ is small next to Spraypoint's own overloaded last hops.
+\end{itemize}
+
+So the 256-router simulation can't show the paper-scale knee at 5\%. The flow-level check covers that scale instead.
+
+The interactive version of these curves predates these corrections: \href{https://claude.ai/artifact/CoaWVHPsZrSmxpWeFwHdw1}{Spraypoint Lanes and the Bypass}.
+
+\section{What the models can't tell us}
+
+The models give hop counts, lane counts and worst-case capacity. Anything about time and queues needs the simulation.
+
+\begin{itemize}
+  \item \textbf{Small-flow FCT and tail latency (p99, p99.9).} Hop count gives a floor, about $L$ times the per-hop delay, but not the queueing on top.
+  \item \textbf{Behavior below full load.} ``Free'' in Model 3 means the traffic fits at saturation. The extra load on bypass links can still add queueing for large flows before that point.
+  \item \textbf{Bursts.} $f$ is a long-run average. Bursts of small flows can briefly overload the $c$ bypass links.
+  \item \textbf{Real hashing.} The ECMP numbers assume many flows, split exactly evenly. With few flows, hash collisions make the busiest link worse.
+  \item \textbf{Non-permutation traffic.} Under uniform random traffic, the overloaded last hops of different destinations average out. In \file{03-load-sweep} the busiest link was only about $2\times$ the mean.
+  \item \textbf{Different $f$ per pair.} Real workloads concentrate small flows on some pairs.
+  \item \textbf{Side effects not covered by the paper's proofs.} The bypass table uses ECMP memory, which might force a smaller $h$. Loops are avoided only if packets keep their class at every hop.
+\end{itemize}
+
+\section{Predictions to test}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}L c L L@{}}
+\toprule
+Prediction & Model & How we test it & Status \\
+\midrule
+Bypassed packets average $\approx 1.95$ hops vs 3.61 for sprayed ones & 1 & Distance distribution of the graph; hop counts in ns-3 & Confirmed: 1.95 and 3.62; 2.36 in ns-3 at our scale, as predicted \\
+6.4\% of pairs are adjacent; 92\% are 2 hops apart & 1 & Distance distribution & Confirmed: 6.4\% and 92.4\% \\
+Spraypoint gives $\approx 55$ lanes per pair; bypass gives $c = 1$ or $\approx 4$ & 2 & Edge-disjoint paths on the Spraypoint graph and on the shortest paths & Confirmed: median 59; $c$ matches Poisson \\
+Spraypoint-only $r$ with ECMP is $\ge 3.6$ & 3 & Permutations, busiest link under even splitting & True but loose: 12 \\
+Throughput loss vs $f$ lies between the ideal and ECMP curves & 3 & Sweep $f$ with the LP and with ECMP & Confirmed at the paper's scale \\
+Pairs with $c = 1$ lose throughput first, near $f \approx 5\%$ & 3 & Per-pair bottleneck grouped by $c$ & Knee confirmed at 5\%; per-pair breakdown in \file{pairs.csv}, to analyze \\
+Below the knee, the bypass doesn't cut large-flow throughput & 3 & ns-3 permutation sweep around saturation (\file{06-permutation}) & Running \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+$f$ comes from the workload and the size threshold for ``small'': $f$ is the bytes in flows under the threshold over all bytes. With 90\% of flows at 10\,KB and 10\% at 1\,MB, $f = 8.3\%$. \file{06-permutation} makes small flows 27.8 and 47.6\,KB to reach 20\% and 30\%.
+
+\section{Reproducing}
+
+\begin{verbatim}
+cmake --build build --target bypass-model
+# Paper scale: about 2 minutes per permutation on 8 cores.
+build/bin/bypass-model --outputDir=out
+# Our simulation's scale: seconds.
+build/bin/bypass-model --nodes=256 --degree=16 --outputDir=out
+# All seeds and both scales.
+JOBS=1 experiments/05-bypass-model.sh
+\end{verbatim}
+
+\texttt{bypass-model -{}-help} lists the options. It writes:
+
+\begin{itemize}
+  \item \file{distances.csv} and \file{shortest-paths.csv}: Models 1 and 2, measured and predicted.
+  \item \file{oversubscription.csv}: $r$ with ECMP and with the LP, next to both models, per permutation and $f$.
+  \item \file{pairs.csv}: each pair's busiest link under ECMP, with its distance and $c$.
+\end{itemize}
+
+\begin{thebibliography}{9}
+\bibitem{rng} G.~Bernardi, R.~Mahajan, C.~Seshadhri, et al. RNG: Flat datacenter networks at scale. \href{https://arxiv.org/abs/2604.15261}{arXiv:2604.15261v3}. §4 (ECMP), §5 (Spraypoint), §7 (Models 7.1--7.3), §8 (multipath transport), §9.1 (oversubscription by LP), Appendices E, F, G.
+\bibitem{namyar} P.~Namyar et al. A throughput-centric view of the performance of datacenter topologies. SIGCOMM 2021 (RNG ref.~[37]): the worst case is a permutation.
+\end{thebibliography}
+
+Bypass models B.1, B.2 and both Model 3 extensions are our own derivation.
+
+\end{document}

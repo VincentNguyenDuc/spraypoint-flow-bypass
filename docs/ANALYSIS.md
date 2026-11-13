@@ -8,10 +8,11 @@ These are M2 results. [TODO.md](TODO.md) lists what M3 adds.
 
 - **Batch:** `experiments/results/remote/2026-11-07_120750_5770a94/`, run on the course server by `./REMOTE.sh` with the simulator as of commit `5770a94`. Results are not committed. `./REMOTE.sh fetch` copies them, and `./REPRODUCE.sh` regenerates them.
 - **Main sweep:** `03-load-sweep`, with 256 routers of degree 16 and 4 hosts each. This keeps the proportions of the full-scale design (*n* = 1,000, *d* = 64), including the 6% of router pairs that are adjacent. It covers loads 0.1, 0.3 and 0.5, seeds 561–563, and all three modes, for 27 runs and about 1.27 million flows per mode.
+- **Oversubscription sweep:** `04-oversubscription`, in batch `experiments/results/remote/2026-11-12_221557_cf0fc72/`, run with the same simulator at commit `cf0fc72`. It is the load sweep's network at load 0.5 with 6 and 8 hosts per router instead of 4, for seeds 561–563 and all three modes, which is 18 runs. More hosts make the fabric busier while each host link stays at load 0.5. Its numbers come from the same notebooks run with `SWEEP=04-oversubscription`, whose executed copies are in that batch's `analysis/` folder.
 - **Second sweep:** `02-small-sweep`, with 64 routers of degree 8. It is the only sweep that reaches load 0.7. It has twice the share of adjacent pairs (11% of flows), covers 5 seeds, and has 60 runs.
-- **Workload:** 90% of flows are 10 KB and 10% are 1 MB, between uniform random hosts. Each flow opens a new TCP connection, with a 1 ms minimum RTO. See the [README](README.md) for the other settings.
+- **Workload:** 90% of flows are 10 KB and 10% are 1 MB, between uniform random hosts. Each flow opens a new TCP connection, with a 1 ms minimum RTO. See the [README](../README.md) for the other settings.
 - **Health:** every flow finished in every run, with no TTL or no-route drops, and all three modes run the same flows.
-- **Where each number comes from:** the numbers below come from the committed notebooks [01-baseline.ipynb](experiments/analysis/01-baseline.ipynb) and [02-bypass-comparison.ipynb](experiments/analysis/02-bypass-comparison.ipynb), which were run on the load sweep. Numbers marked *small sweep* come from the same notebooks run with `SWEEP=02-small-sweep`.
+- **Where each number comes from:** the numbers below come from the committed notebooks [01-baseline.ipynb](../experiments/analysis/01-baseline.ipynb) and [02-bypass-comparison.ipynb](../experiments/analysis/02-bypass-comparison.ipynb), which were run on the load sweep. Numbers marked *small sweep* come from the same notebooks run with `SWEEP=02-small-sweep`.
 
 ## Reading the tail
 
@@ -87,7 +88,7 @@ H3 also predicts that this wider reach raises the hotspot risk. The next section
   - In the *small sweep* at load 0.5, small flows that are not bypassed wait for a timeout slightly more often (1.12% → 1.20%), in all 5 seeds. That network has twice the share of adjacent pairs, and the load sweep shows the opposite (−3%).
 
   Both are consistent with direct links getting a little busier, but both are small.
-- **No crossover so far.** By every measure here, the bypass is no worse than the baseline at every load.
+- **No crossover so far.** By every measure here, the bypass is no worse than the baseline at every load, nor with the busier fabric of `04-oversubscription` (below).
 
 **Why H2 is untested, not refuted.** The bypass only moves small flows, which carry 8% of the bytes, and small flows between adjacent routers carry 0.5%. That is too little traffic to create the hotspot the paper warns about. Testing H2 needs workloads where small flows carry more of the bytes, as [TODO.md](TODO.md) lists.
 
@@ -99,6 +100,50 @@ At load 0.7, more than 2% of small flows wait for a timeout in every mode, and m
 - Other small flows go from 3.21% to 2.63% (shortest).
 
 The bypass still lowers the clean p99 by 7–12%. At this load the tail is set by losses, so the bypass can't rescue it.
+
+## A busier fabric: 6 and 8 hosts per router
+
+`04-oversubscription` keeps every host link at load 0.5 and adds hosts, so the fabric between routers carries more. The 4-host column is the load sweep at load 0.5. All numbers pool 3 seeds.
+
+| | 4 hosts | 6 hosts | 8 hosts |
+| --- | ---: | ---: | ---: |
+| Mean fabric link utilization | 0.46 | 0.65 | 0.77 |
+| Links whose queue ever filled | 44% | 77% | 89% |
+| Queue drops per run | 124,000 | 558,000 | 1,560,000 |
+
+At 8 hosts the fabric is saturated. The busiest links run at 0.99, and the network takes 44–49 ms to drain flows that stopped arriving at 4 ms, against 14 ms with 6 hosts. This is past any realistic operating point, so the sweep runs from a moderately busy fabric to an overloaded one.
+
+**Small flows: the bypass helps more as the fabric gets busier.**
+
+| Small flows between | Mode | Timeouts, 4 / 6 / 8 hosts | Clean p99 (µs), 4 / 6 / 8 hosts |
+| --- | --- | --- | --- |
+| Adjacent routers | No bypass | 1.32 / 4.08 / 8.97% | 49 / 58 / 77 |
+| | Adjacent bypass | 0.63 / 1.25 / 2.53% | 39 / 32 / 28 |
+| | Shortest-path bypass | 0.65 / 1.22 / 2.39% | 39 / 33 / 29 |
+| Other routers | No bypass | 1.38 / 4.58 / 9.96% | 50 / 62 / 83 |
+| | Adjacent bypass | 1.34 / 4.53 / 9.78% | 51 / 62 / 83 |
+| | Shortest-path bypass | 0.94 / 2.55 / 5.52% | 45 / 47 / 55 |
+
+- With 8 hosts, the bypass cuts timeouts of small flows between adjacent routers 3.6×, and their clean p99 from 77 to 28 µs. Every seed agrees, at both 6 and 8 hosts.
+- The shortest-path bypass nearly halves timeouts of the other small flows, and cuts their clean p99 by 25% (6 hosts) and 34% (8 hosts).
+- Under the bypass, the clean p99 of adjacent flows *falls* as the fabric gets busier. That is likely survivorship, not faster queues: a busier fabric turns more of the slowest flows into timeouts, which leave the clean group.
+
+**Other traffic: still no cost, and large flows gain.**
+
+| | 4 hosts | 6 hosts | 8 hosts |
+| --- | ---: | ---: | ---: |
+| Large-flow goodput, no bypass (Gbps) | 20.0 | 13.1 | 8.0 |
+| Change with the adjacent bypass | +0.2% | +0.5% | +0.8% |
+| Change with the shortest-path bypass | +1.8–2.1% | +5.2–5.4% | +7.3–7.7% |
+| Other small flows' timeouts, adjacent bypass vs none | 1.38 → 1.34% | 4.58 → 4.53% | 9.96 → 9.78% |
+
+- **Large flows get faster, more so as the fabric fills.** The shortest-path bypass cuts small flows from 3.64 to 2.37 hops, so the fabric carries fewer bytes for the same traffic, and it drops 17–18% fewer packets. The gain is in every seed.
+- **Small flows the adjacent bypass doesn't touch don't suffer either.** Their timeouts fall slightly, in every seed.
+- **The bypass does load some links more.** At 8 hosts, the 1% of links it loads most go from 0.68 to 0.75 utilization (adjacent) and 0.69 to 0.75 (shortest), and their queues fill more often: 81% → 90% and 80% → 87%. But the network as a whole gains more than these links lose.
+- **Fan-in doesn't change.** Each destination still receives from all 16 neighbors, and its busiest neighbor carries 11%.
+- **The slowest 1% of large flows can't be compared here.** At 6 and 8 hosts, each mode's p1 goodput is 0.79 Gbps: a 1 MB flow that lost its handshake and waited the 10 ms timeout.
+
+**Why still no cost?** A busier fabric isn't enough on its own. With uniform traffic and small flows at 8% of the bytes, moving them to shorter paths always removes more load than it concentrates. The flow-level models in [bypass-modelling.tex](bypass-modelling.tex) agree: on this 256-router network, the bypass only costs throughput once small flows carry about 20% of the bytes (10–20% for the shortest-path bypass), and then only under worst-case traffic. `06-permutation` tests that regime in ns-3.
 
 ## H4: Overhead
 

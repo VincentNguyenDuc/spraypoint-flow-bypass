@@ -1,4 +1,4 @@
-// Checks the bypass models in BYPASS_MODELLING.md against the routing tables, with
+// Checks the bypass models in docs/bypass-modelling.tex against the routing tables, with
 // no ns-3:
 //
 // - Model B.1: shortest distances between routers, the hops a bypassed flow takes.

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Checks the bypass models in BYPASS_MODELLING.md against the routing tables, with no
-# ns-3: shortest distances, edge-disjoint shortest paths, and oversubscription under
-# random matchings as the bypassed share f grows, with ECMP and with the LP.  Runs at
-# the paper's scale and at the load sweeps' scale.  Each run uses every core, so leave
-# JOBS at 1; the paper-scale runs take about 20 minutes each on 16 cores.
+# Checks the bypass models in docs/bypass-modelling.tex against the routing tables,
+# with no ns-3: shortest distances, edge-disjoint shortest paths, and oversubscription
+# under random matchings as the bypassed share f grows, with ECMP and with the LP.  Runs
+# at the paper's scale and at the load sweeps' scale.  Each run uses every core, so
+# leave JOBS at 1; the paper-scale runs take about 20 minutes each on 16 cores.
 PROGRAM_NAME=bypass-model
 source "$(dirname "$0")/common.sh"
 
