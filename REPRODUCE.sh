@@ -47,7 +47,7 @@ if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then
     python3 -m venv experiments/analysis/.venv
     experiments/analysis/.venv/bin/pip install --quiet -r experiments/analysis/requirements.txt
 fi
-for sweep in 02-small-sweep 03-load-sweep; do
+for sweep in 02-small-sweep 03-load-sweep 04-oversubscription; do
     for notebook in experiments/analysis/*.ipynb; do
         RESULTS_DIR=$BATCH_DIR SWEEP=$sweep experiments/analysis/.venv/bin/jupyter nbconvert \
             --to notebook --execute --ExecutePreprocessor.timeout=3600 --output-dir "$BATCH_DIR/analysis" \
