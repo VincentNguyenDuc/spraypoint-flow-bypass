@@ -35,6 +35,8 @@ experiments/02-small-sweep-baseline.sh
 experiments/02-small-sweep-bypass.sh
 experiments/03-load-sweep-baseline.sh
 experiments/03-load-sweep-bypass.sh
+experiments/04-oversubscription-baseline.sh
+experiments/04-oversubscription-bypass.sh
 
 step "Analysis"
 if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then

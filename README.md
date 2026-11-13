@@ -34,6 +34,7 @@ Keep this table in step with the scripts in `experiments/`, which are the source
 | `01-smoke` | 64 | 8 | 2 | 1 ms | 0.1, 0.3 with no bypass; 0.3 with a bypass | 561 | none, adjacent, shortest | 500 µs |
 | `02-small-sweep` | 64 | 8 | 2 | 4 ms | 0.1, 0.3, 0.5, 0.7 | 561–565 | none, adjacent, shortest | 1 ms |
 | `03-load-sweep` | 256 | 16 | 4 | 4 ms | 0.1, 0.3, 0.5 | 561–563 | none, adjacent, shortest | 1 ms |
+| `04-oversubscription` | 256 | 16 | 6, 8 | 4 ms | 0.5 | 561–563 | none, adjacent, shortest | 1 ms |
 
 All experiments share these settings:
 
@@ -58,6 +59,8 @@ JOBS=6 experiments/02-small-sweep-baseline.sh  # small network; JOBS sets how ma
 JOBS=6 experiments/02-small-sweep-bypass.sh    # same flows as the baseline sweep, with each bypass
 JOBS=6 experiments/03-load-sweep-baseline.sh   # larger network, using the same pattern
 JOBS=6 experiments/03-load-sweep-bypass.sh
+JOBS=3 experiments/04-oversubscription-baseline.sh  # busier fabric, same host load
+JOBS=3 experiments/04-oversubscription-bypass.sh
 cmake --build build --target format            # format the C++ code before committing
 ```
 
