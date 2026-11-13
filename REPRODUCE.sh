@@ -37,6 +37,10 @@ experiments/03-load-sweep-baseline.sh
 experiments/03-load-sweep-bypass.sh
 experiments/04-oversubscription-baseline.sh
 experiments/04-oversubscription-bypass.sh
+# Each run of the model check already uses every core.
+JOBS=1 experiments/05-bypass-model.sh
+experiments/06-permutation-baseline.sh
+experiments/06-permutation-bypass.sh
 
 step "Analysis"
 if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then

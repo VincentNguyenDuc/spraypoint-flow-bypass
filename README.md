@@ -35,8 +35,13 @@ Keep this table in step with the scripts in `experiments/`, which are the source
 | `02-small-sweep` | 64 | 8 | 2 | 4 ms | 0.1, 0.3, 0.5, 0.7 | 561–565 | none, adjacent, shortest | 1 ms |
 | `03-load-sweep` | 256 | 16 | 4 | 4 ms | 0.1, 0.3, 0.5 | 561–563 | none, adjacent, shortest | 1 ms |
 | `04-oversubscription` | 256 | 16 | 6, 8 | 4 ms | 0.5 | 561–563 | none, adjacent, shortest | 1 ms |
+| `06-permutation` | 256 | 16 | 4 | 4 ms | 0.1, 0.2, 0.3, 0.4 | 561–563 | none, adjacent, shortest | 1 ms |
 
-All experiments share these settings:
+`06-permutation` sends each router's traffic only to one partner router, and sweeps the small flows' size, 10, 27.8 and 47.6 KB, so that they carry 8%, 20% and 30% of the bytes.
+
+`05-bypass-model` is not a simulation. It checks the models in [BYPASS_MODELLING.md](BYPASS_MODELLING.md) against the routing tables with `bypass-model`, at 256 routers of degree 16 and 1,000 of degree 64, for seeds 561–563.
+
+All simulations share these settings, except where noted above:
 
 - **Routing:** 4 waypoints and 2 pointing next hops
 - **Links:** 100 Gbps with 500 ns delay
@@ -61,6 +66,9 @@ JOBS=6 experiments/03-load-sweep-baseline.sh   # larger network, using the same 
 JOBS=6 experiments/03-load-sweep-bypass.sh
 JOBS=3 experiments/04-oversubscription-baseline.sh  # busier fabric, same host load
 JOBS=3 experiments/04-oversubscription-bypass.sh
+JOBS=1 experiments/05-bypass-model.sh           # flow-level model check; each run uses every core
+JOBS=6 experiments/06-permutation-baseline.sh  # permutation traffic around saturation
+JOBS=6 experiments/06-permutation-bypass.sh
 cmake --build build --target format            # format the C++ code before committing
 ```
 
@@ -69,4 +77,4 @@ cmake --build build --target format            # format the C++ code before comm
 - **Run on a server:** copy `.env.example` to `.env` and fill in the login, then run `./REMOTE.sh start`. It sends the current commit and runs `./REPRODUCE.sh` there, which keeps going after you disconnect. `./REMOTE.sh status` or `logs` shows its progress, and `./REMOTE.sh fetch` copies the results into `experiments/results/remote/`. The server needs `git`, `cmake`, `make`, a C++ compiler, and `python3` with `venv`, and password logins need `sshpass` locally (`brew install sshpass`).
 - **Add an experiment:** copy a script in `experiments/` and change its settings.
 - **Add a test:** create `test/<name>/` with a `CMakeLists.txt`, and add it to `test/CMakeLists.txt`.
-- **Run with other settings:** pass options to a program in `build/bin/`. `--PrintHelp` lists the options of `tcp-experiment` and `tcp-bypass`, and `--help` lists those of `spraypoint-verifier`.
+- **Run with other settings:** pass options to a program in `build/bin/`. `--PrintHelp` lists the options of `tcp-experiment` and `tcp-bypass`, and `--help` lists those of `spraypoint-verifier` and `bypass-model`.
