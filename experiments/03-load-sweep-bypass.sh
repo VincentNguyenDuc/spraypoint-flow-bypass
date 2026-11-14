@@ -4,6 +4,8 @@
 PROGRAM_NAME=tcp-bypass
 source "$(dirname "$0")/common.sh"
 source "$ROOT/experiments/03-load-sweep-settings.sh"
+read -r -a LOADS <<< "${EXPERIMENT_LOADS:-${LOADS[*]}}"
+read -r -a SEEDS <<< "${EXPERIMENT_SEEDS:-${SEEDS[*]}}"
 
 for bypass in adjacent shortest; do
     for seed in "${SEEDS[@]}"; do

@@ -2,6 +2,8 @@
 # Flow completion times with no bypass, across loads and seeds.
 source "$(dirname "$0")/common.sh"
 source "$ROOT/experiments/03-load-sweep-settings.sh"
+read -r -a LOADS <<< "${EXPERIMENT_LOADS:-${LOADS[*]}}"
+read -r -a SEEDS <<< "${EXPERIMENT_SEEDS:-${SEEDS[*]}}"
 
 for seed in "${SEEDS[@]}"; do
     for load in "${LOADS[@]}"; do

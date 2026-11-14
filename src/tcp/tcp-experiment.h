@@ -15,6 +15,8 @@
 #include "ns3/packet-sink.h"
 #include "ns3/packet.h"
 #include "ns3/ptr.h"
+#include "ns3/tcp-header.h"
+#include "ns3/tcp-socket-base.h"
 
 #include <cstdint>
 #include <optional>
@@ -97,6 +99,7 @@ class TcpExperiment
         ns3::Time start;
         uint32_t received{0};
         ns3::Time finish;
+        uint64_t dataRetransmissions{0};
     };
 
     // The applications of a flow that has started and has not been released.
@@ -122,6 +125,8 @@ class TcpExperiment
         // be measured over the time the network carries the offered load.
         uint64_t sentDuringArrivals{0};
         double packetSecondsDuringArrivals{0};
+        uint64_t queueDrops{0};
+        uint64_t deviceDrops{0};
     };
 
     void ConfigureTcp() const;
@@ -138,12 +143,18 @@ class TcpExperiment
                   ns3::Ptr<const ns3::Packet> packet,
                   const ns3::Address&,
                   const ns3::Address&);
+    void OnDataRetransmission(uint32_t flow,
+                              ns3::Ptr<const ns3::Packet>,
+                              const ns3::TcpHeader&,
+                              const ns3::Address&,
+                              const ns3::Address&,
+                              ns3::Ptr<const ns3::TcpSocketBase>);
     void OnHostDeliver(const ns3::Ipv4Header& header, ns3::Ptr<const ns3::Packet>, uint32_t);
     void OnQueueLength(uint32_t port, uint32_t, uint32_t length);
     void OnPortSent(uint32_t port, ns3::Ptr<const ns3::Packet> packet);
     void RecordArrivalWindow();
-    void OnTcDrop(bool atRouter, ns3::Ptr<const ns3::Packet>);
-    void OnDeviceDrop(ns3::Ptr<const ns3::Packet>);
+    void OnTcDrop(bool atRouter, uint32_t node, ns3::Ptr<const ns3::Packet>);
+    void OnDeviceDrop(uint32_t port, ns3::Ptr<const ns3::Packet>);
     void OnIpDrop(const ns3::Ipv4Header&,
                   ns3::Ptr<const ns3::Packet>,
                   ns3::Ipv4L3Protocol::DropReason reason,
@@ -166,6 +177,9 @@ class TcpExperiment
     uint32_t m_completed{0};
     std::vector<uint64_t> m_pathLengths[PATH_CLASSES];
     std::vector<Port> m_ports;
+    std::vector<std::unordered_map<uint32_t, uint32_t>> m_routerPortIndices;
+    std::vector<uint32_t> m_hostPortIndices;
+    uint64_t m_unattributedRouterDrops{0};
     uint32_t m_maxQueue[PORT_KINDS]{};
     uint64_t m_routerDrops{0};
     uint64_t m_hostDrops{0};

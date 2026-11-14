@@ -1,4 +1,5 @@
 #include "tcp-experiment.h"
+#include "egress-port-tag.h"
 
 #include "spraypoint/hash.h"
 
@@ -260,11 +261,28 @@ TcpExperiment::ConnectPort(Ptr<NetDevice> device, PortKind kind, uint32_t from, 
 {
     const auto index = static_cast<uint32_t>(m_ports.size());
     m_ports.push_back(Port{.from = from, .to = to, .kind = kind});
+    if (kind == HOST_NIC)
+    {
+        if (m_hostPortIndices.size() <= from)
+        {
+            m_hostPortIndices.resize(from + 1);
+        }
+        m_hostPortIndices[from] = index;
+    }
+    else
+    {
+        if (m_routerPortIndices.size() <= from)
+        {
+            m_routerPortIndices.resize(from + 1);
+        }
+        m_routerPortIndices[from][device->GetIfIndex()] = index;
+    }
     auto p2p = DynamicCast<PointToPointNetDevice>(device);
     p2p->GetQueue()->TraceConnectWithoutContext(
         "PacketsInQueue",
         MakeCallback(&TcpExperiment::OnQueueLength, this).Bind(index));
-    p2p->TraceConnectWithoutContext("MacTxDrop", MakeCallback(&TcpExperiment::OnDeviceDrop, this));
+    p2p->TraceConnectWithoutContext("MacTxDrop",
+                                    MakeCallback(&TcpExperiment::OnDeviceDrop, this).Bind(index));
     if (kind == FABRIC)
     {
         p2p->TraceConnectWithoutContext("PhyTxEnd",
@@ -282,7 +300,7 @@ TcpExperiment::ConnectNodeTraces()
         {
             nodes.Get(i)->GetObject<TrafficControlLayer>()->TraceConnectWithoutContext(
                 "TcDrop",
-                MakeCallback(&TcpExperiment::OnTcDrop, this).Bind(atRouter));
+                MakeCallback(&TcpExperiment::OnTcDrop, this).Bind(atRouter, i));
             nodes.Get(i)->GetObject<Ipv4L3Protocol>()->TraceConnectWithoutContext(
                 "Drop",
                 MakeCallback(&TcpExperiment::OnIpDrop, this));
@@ -395,6 +413,8 @@ TcpExperiment::StartFlow(uint32_t index)
     sourceHelper.SetAttribute("SendSize", UintegerValue(SEGMENT_BYTES));
     sourceHelper.SetAttribute("Tos", UintegerValue(tos));
     auto source = sourceHelper.Install(m_hosts.Get(flow.sourceHost));
+    source.Get(0)->TraceConnectWithoutContext(
+        "TcpRetransmission", MakeCallback(&TcpExperiment::OnDataRetransmission, this).Bind(index));
 
     m_active[index] = ActiveFlow{DynamicCast<PacketSink>(sink.Get(0)),
                                  DynamicCast<BulkSendApplication>(source.Get(0))};
@@ -413,6 +433,17 @@ TcpExperiment::StartFlow(uint32_t index)
                             this,
                             index + 1);
     }
+}
+
+void
+TcpExperiment::OnDataRetransmission(uint32_t index,
+                                    Ptr<const Packet>,
+                                    const TcpHeader&,
+                                    const Address&,
+                                    const Address&,
+                                    Ptr<const TcpSocketBase>)
+{
+    ++m_flows[index].dataRetransmissions;
 }
 
 void
@@ -529,15 +560,33 @@ TcpExperiment::RecordArrivalWindow()
 }
 
 void
-TcpExperiment::OnTcDrop(bool atRouter, Ptr<const Packet>)
+TcpExperiment::OnTcDrop(bool atRouter, uint32_t node, Ptr<const Packet> packet)
 {
     ++(atRouter ? m_routerDrops : m_hostDrops);
+    if (!atRouter)
+    {
+        ++m_ports.at(m_hostPortIndices.at(node)).queueDrops;
+        return;
+    }
+    EgressPortTag tag;
+    if (packet->PeekPacketTag(tag) && tag.router == node)
+    {
+        const auto& ports = m_routerPortIndices.at(node);
+        const auto port = ports.find(tag.device);
+        if (port != ports.end())
+        {
+            ++m_ports[port->second].queueDrops;
+            return;
+        }
+    }
+    ++m_unattributedRouterDrops;
 }
 
 void
-TcpExperiment::OnDeviceDrop(Ptr<const Packet>)
+TcpExperiment::OnDeviceDrop(uint32_t port, Ptr<const Packet>)
 {
     ++m_deviceDrops;
+    ++m_ports.at(port).deviceDrops;
 }
 
 void
@@ -636,7 +685,8 @@ TcpExperiment::PrintResults(std::ostream& out) const
         << " host_nic=" << m_maxQueue[HOST_NIC] << "\n"
         << "drops router_queue=" << m_routerDrops << " host_queue=" << m_hostDrops
         << " device=" << m_deviceDrops << " ttl=" << m_ttlDrops << " no_route=" << m_noRouteDrops
-        << " other_ip=" << m_otherIpDrops << "\n";
+        << " other_ip=" << m_otherIpDrops << " unattributed_router_queue="
+        << m_unattributedRouterDrops << "\n";
 }
 
 void
@@ -662,7 +712,8 @@ void
 TcpExperiment::WriteFlows(const std::string& path) const
 {
     std::ofstream file(path);
-    file << "flow,source_router,destination_router,adjacent,small,bytes,start_ns,finish_ns\n";
+    file << "flow,source_router,destination_router,adjacent,small,bytes,start_ns,finish_ns,"
+            "data_retransmissions\n";
     for (size_t index = 0; index < m_flows.size(); ++index)
     {
         const auto& flow = m_flows[index];
@@ -674,7 +725,7 @@ TcpExperiment::WriteFlows(const std::string& path) const
         {
             file << flow.finish.GetNanoSeconds();
         }
-        file << "\n";
+        file << "," << flow.dataRetransmissions << "\n";
     }
     if (!file.flush())
     {
@@ -688,19 +739,19 @@ TcpExperiment::WriteLinks(const std::string& path) const
     std::ofstream file(path);
     file << "from,to,sent_small_bytes,sent_large_bytes,sent_bytes_during_arrivals,"
             "delivered_small_bytes,delivered_large_bytes,max_queue_packets,"
-            "mean_queue_packets_during_arrivals\n";
+            "mean_queue_packets_during_arrivals,port_kind,queue_drops,device_drops\n";
     const double arrivalSeconds = m_flows.back().start.GetSeconds();
     for (const auto& port : m_ports)
     {
-        if (port.kind != FABRIC)
-        {
-            continue;
-        }
-        const auto& arrivals = m_routing[port.to]->GetArrivals(port.from);
+        const auto arrivals = port.kind == FABRIC ? m_routing[port.to]->GetArrivals(port.from)
+                                                  : SpraypointRouting::LinkCounters{};
+        const char* kind =
+            port.kind == FABRIC ? "fabric" : port.kind == DOWNLINK ? "downlink" : "host_nic";
         file << port.from << "," << port.to << "," << port.sentSmall << "," << port.sentLarge << ","
              << port.sentDuringArrivals << "," << arrivals.deliveredSmall << ","
              << arrivals.deliveredLarge << "," << port.maxLength << ","
-             << port.packetSecondsDuringArrivals / arrivalSeconds << "\n";
+             << port.packetSecondsDuringArrivals / arrivalSeconds << "," << kind << ","
+             << port.queueDrops << "," << port.deviceDrops << "\n";
     }
     if (!file.flush())
     {

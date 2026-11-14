@@ -1,4 +1,5 @@
 #include "spraypoint-routing.h"
+#include "egress-port-tag.h"
 
 #include "spraypoint/hash.h"
 
@@ -186,7 +187,14 @@ SpraypointRouting::RouteInput(Ptr<const Packet> p,
     route->SetSource(header.GetSource());
     route->SetGateway(Ipv4Address::GetAny());
     route->SetOutputDevice(port);
-    ucb(route, p, header);
+    // TrafficControlLayer's drop trace does not expose the output device.
+    // Replace the previous hop's tag on a copy before forwarding this packet.
+    auto forwarded = p->Copy();
+    EgressPortTag egress;
+    egress.router = m_router;
+    egress.device = port->GetIfIndex();
+    forwarded->ReplacePacketTag(egress);
+    ucb(route, forwarded, header);
     return true;
 }
 

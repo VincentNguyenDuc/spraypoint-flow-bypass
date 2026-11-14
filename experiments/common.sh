@@ -10,18 +10,20 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-EXPERIMENT=$(basename "$0" .sh)
+EXPERIMENT=${EXPERIMENT:-$(basename "$0" .sh)}
 source "$ROOT/experiments/batch.sh"
 RESULTS=$BATCH_DIR/$EXPERIMENT
 PROGRAM_NAME=${PROGRAM_NAME:-tcp-experiment}
-PROGRAM=$ROOT/build/bin/$PROGRAM_NAME
+PROGRAM=${EXPERIMENT_BIN_DIR:-$ROOT/build/bin}/$PROGRAM_NAME
 JOBS=${JOBS:-1}
 
 mkdir -p "$RESULTS"
 cd "$ROOT"
 
 # The first build also fetches and builds ns-3, which takes several minutes.
-if ! build_log=$(cmake -S . -B build 2>&1 && cmake --build build --target "$PROGRAM_NAME" 2>&1); then
+if [[ -n ${EXPERIMENT_BIN_DIR:-} ]]; then
+    test -x "$PROGRAM" || { echo "Missing frozen program: $PROGRAM" >&2; exit 1; }
+elif ! build_log=$(cmake -S . -B build 2>&1 && cmake --build build --target "$PROGRAM_NAME" 2>&1); then
     echo "$build_log" >&2
     echo "error: the build failed" >&2
     exit 1

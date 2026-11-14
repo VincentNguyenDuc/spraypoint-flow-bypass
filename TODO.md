@@ -9,16 +9,16 @@
 
 ## Experiments to add (M3)
 
-- [ ] **Make H2 testable.** Small flows are only 8% of bytes, and small flows between adjacent routers only 1%, so the bypass moves too little traffic to create hotspots. Sweep `--smallFraction`, `--smallBytes` and `--smallThreshold`, and try the published workloads with `--flowSizeCdf=experiments/workloads/websearch.cdf` and `hadoop.cdf`.
-- [ ] **Find the crossover.** `03-load-sweep` stops at load 0.5; add 0.7 and higher.
+- [ ] **Make H2 testable.** The matrix in `04-h2-sweep.sh` covers small-flow fractions, sizes, and WebSearch/Hadoop cutoffs. `experiments/run-h2.sh` uses a global CPU/memory-admitted queue over the frozen matrix and refreshes `analysis/H2.md` per batch. Keep open until all runs and their analysis finish; memory-deferred runs remain pending.
+- [ ] **Find the crossover.** `03-load-sweep` now includes loads 0.7 and 0.9; the H2 report compares modes on identical flows and marks exploratory crossover candidates. Keep open until the extended sweep finishes and is reviewed.
 - [ ] **Timeout sensitivity.** Rerun a slice with other `--minRtoUs` values, which also scales the handshake timeout.
 - [ ] **Traffic pattern.** The proposal promises a pattern sweep, but `--pattern` only supports `uniform` so far.
 - [ ] **More seeds** where a p99 rests on fewer than about 100 flows (the `beyond_p99` column).
 
 ## Simulator changes
 
-- [ ] **Record drops per link** in `links.csv`, separating fabric links from the downlinks to hosts. We only count drops in total, so we can't tell where flows lose packets, for example why bypassed adjacent flows still time out 0.7% of the time at load 0.5.
-- [ ] **Record retransmissions per flow** in `flows.csv`, instead of inferring timeouts from FCT. The inference works for small flows but not for large ones.
+- [x] **Record drops per link** in `links.csv`, separating fabric links, downlinks to hosts, and host NICs. The congested `tcp-port-drops` test passes with no unattributed drops and reconciles per-port counters with the summary. H2 analysis repeats this reconciliation for every completed run.
+- [ ] **Record retransmissions per flow** in `flows.csv`, instead of inferring timeouts from FCT. The `data_retransmissions` column now counts sender data-segment retransmissions (including fast retransmissions), but the ns-3 trace does not count SYN/SYN-ACK or FIN retransmissions and does not distinguish timeouts. Handshake losses and timeout classification still need separate instrumentation. The FCT inference works for small flows but not for large ones.
 
 ## Analysis
 

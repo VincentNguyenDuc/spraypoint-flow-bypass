@@ -33,15 +33,101 @@ Keep this table in step with the scripts in `experiments/`, which are the source
 | --- | ---: | ---: | ---: | ---: | --- | --- | --- | ---: |
 | `01-smoke` | 64 | 8 | 2 | 1 ms | 0.1, 0.3 with no bypass; 0.3 with a bypass | 561 | none, adjacent, shortest | 500 µs |
 | `02-small-sweep` | 64 | 8 | 2 | 4 ms | 0.1, 0.3, 0.5, 0.7 | 561–565 | none, adjacent, shortest | 1 ms |
-| `03-load-sweep` | 256 | 16 | 4 | 4 ms | 0.1, 0.3, 0.5 | 561–563 | none, adjacent, shortest | 1 ms |
+| `03-load-sweep` | 256 | 16 | 4 | 4 ms | 0.1, 0.3, 0.5, 0.7, 0.9 | 561–563 | none, adjacent, shortest | 1 ms |
+| `04-h2-<scenario>` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 | 561–563 | none, adjacent, shortest | 1 ms |
 
 All experiments share these settings:
 
 - **Routing:** 4 waypoints and 2 pointing next hops
 - **Links:** 100 Gbps with 500 ns delay
 - **Queues:** 100 packets at routers and 1,000 at hosts
-- **Traffic:** uniform random hosts, with 90% of flows at 10 KB and 10% at 1 MB
+- **Traffic:** uniform random hosts, with 90% of flows at 10 KB and 10% at 1 MB, except the H2 scenarios below
 - **TCP:** 1 ms minimum retransmission timeout
+
+### H2 workload sweep
+
+The H2 sweep increases the share of bytes eligible for bypass and tests different
+cutoffs. Each scenario is compared against its own baseline with the same seed and
+workload. The two-size scenarios keep the 1 MB large flows: `fraction95` and
+`fraction99` use 10 KB small flows with 95% and 99% small flows, while `size50k`
+and `size100k` use 50 KB and 100 KB small flows with a 90% small-flow fraction.
+The default 90%/10 KB workload is covered by `03-load-sweep`.
+
+`web10k`, `web100k`, `web1m` and `hadoop10k`, `hadoop100k`, `hadoop1m` use the
+corresponding CDF with a cutoff of 10 KB, 100 KB or 1 MB. The CDF sampler linearly
+interpolates between points. A threshold changes which flows are classified small,
+so compare modes within a scenario and take care when comparing classes across
+thresholds. Timeout inference in the notebooks was designed for 10 KB flows and
+is not reliable for larger flows; use raw FCT and link metrics with that caveat.
+
+To run only the H2 evaluation and extended main load sweep, use
+`RESULTS_BATCH=<unique-batch-name> JOBS=8 bash experiments/run-h2.sh --memory-gb 12`.
+It validates the simulator, freezes sources, executables and ns-3 libraries, runs
+315 simulations (45 default-workload and 270 H2), and refreshes
+`analysis/H2.md`, `h2-runs.csv`, `h2-comparisons.csv` and `h2-pending.csv` in the
+batch as completed runs accumulate. All 315 runs share one global queue, so different
+workloads, seeds and routing modes can occupy the available slots. `JOBS` (or
+`--jobs`) sets the maximum simultaneous runs. Without an explicit limit, it uses
+the CPU count allowed by affinity and cgroup quota (16 on the current machine),
+with no fixed cap of 4. `JOBS=8` allows up to 8 workers; memory admission can still
+reduce the actual concurrency. An existing `JOBS=4` setting remains an explicit
+limit of 4. Running dispatchers retain the limit they started with; resume the
+same batch with a new limit to change it, preserving completed results.
+`--memory-gb` sets the total estimated reservation budget in GiB; `--reserve-gb`
+(default 2) leaves additional memory available for other processes and analysis.
+If omitted, the budget is the available memory at startup minus that reserve.
+The dispatcher checks current free memory and live worker RSS before admitting
+more work, and backfills from other scenarios when a large run cannot fit.
+
+The admission model is conservative, based on the existing default-workload peaks
+and generated flows per byte; it is not a measured peak or a hard memory limit.
+At a 12 GiB budget, 36 runs are deferred by this model: the fraction99 runs and
+the fraction95 runs at load 0.7. They remain pending for a larger-memory machine
+or a deliberately revised budget, while other runs can finish. If only deferred
+runs remain, status becomes `blocked-memory` with exit status 2, never `complete`.
+
+Reuse the same `RESULTS_BATCH` to resume its frozen simulator and settings, even
+if that batch was created by the older serial runner. Already completed runs
+are checked against their exact options and skipped. Interrupted/failed attempts
+are archived under `attempts/` rather than deleted. A per-batch lock prevents two
+dispatchers from writing the same batch. The dispatcher revision, plan and resource
+settings are saved under `scheduler/` without changing the simulator snapshot.
+
+Preview the original stopped batch without building or running any simulation:
+
+```bash
+RESULTS_BATCH=2026-11-10_103714_h2 JOBS=8 bash experiments/run-h2.sh --dry-run --memory-gb 12
+```
+
+The batch's `scheduler-progress.json` and periodic `PROGRESS` log lines show counts,
+active runs, memory reservations and deferred work even when a simulator is silent.
+`status` is `running`, `complete`, `failed`, `stopped`, or `blocked-memory`;
+`exit-status` is respectively absent, 0, 1, 130, or 2. Ctrl-C, SIGTERM and SIGHUP
+stop the dispatcher and all worker process groups, retaining their partial data.
+`manifest.txt`, scheduler provenance and each run's logs identify the exact inputs.
+Analysis runs in one separate process, so report generation does not serialize the
+simulation queue. Its output is in `analysis/report.log`.
+
+H2 reports use raw FCT, actual data retransmissions, per-port drop reconciliation,
+and matched seeds and flows. They report exploratory crossover candidates and
+flag incomplete coverage; they do not apply the 10 KB timeout heuristic to CDF
+or larger flows. Confidence intervals remain a separate TODO.
+
+To run everything including the original small sweep and analysis notebooks, use
+`RUN_H2=1 JOBS=8 MEMORY_BUDGET_GB=12 ./REPRODUCE.sh` (choose JOBS for available memory).
+For one scenario, set a shared `RESULTS_BATCH` for both commands, e.g.:
+
+```bash
+export RESULTS_BATCH=h2-web100k
+JOBS=6 experiments/04-h2-sweep.sh web100k baseline
+JOBS=6 experiments/04-h2-sweep.sh web100k bypass
+SWEEP=04-h2-web100k RESULTS_BATCH=$RESULTS_BATCH experiments/analysis/.venv/bin/jupyter lab experiments/analysis/
+```
+
+The batch must belong to the current code and machine. With uncommitted code,
+separate invocations otherwise start separate batches; do not reuse a batch after
+changing simulation code or experiment settings. Inspect completed runs and their
+recorded options before drawing conclusions.
 
 ## Workflow
 
@@ -67,3 +153,12 @@ cmake --build build --target format            # format the C++ code before comm
 - **Add an experiment:** copy a script in `experiments/` and change its settings.
 - **Add a test:** create `test/<name>/` with a `CMakeLists.txt`, and add it to `test/CMakeLists.txt`.
 - **Run with other settings:** pass options to a program in `build/bin/`. `--PrintHelp` lists the options of `tcp-experiment` and `tcp-bypass`, and `--help` lists those of `spraypoint-verifier`.
+
+`links.csv` includes directed `fabric`, `downlink` (router to host), and
+`host_nic` (host to router) ports. `queue_drops` counts traffic-control drops at
+that port; `device_drops` counts device transmit drops separately. The summary's
+`unattributed_router_queue` reports router drops whose output port could not be
+identified and should be checked before interpreting per-port totals. Fabric byte
+and arrival counters apply only to fabric rows. Older results contain fabric rows
+only. `flows.csv` records sender data-segment retransmissions; handshake and FIN
+retransmissions are not included.

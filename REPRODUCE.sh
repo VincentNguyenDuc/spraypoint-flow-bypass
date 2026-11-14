@@ -36,12 +36,19 @@ experiments/02-small-sweep-bypass.sh
 experiments/03-load-sweep-baseline.sh
 experiments/03-load-sweep-bypass.sh
 
+# The H2 matrix is much larger; opt in when the server has time and disk space.
+if [[ ${RUN_H2:-0} == 1 ]]; then
+    bash experiments/run-h2.sh
+fi
+
 step "Analysis"
 if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then
     python3 -m venv experiments/analysis/.venv
     experiments/analysis/.venv/bin/pip install --quiet -r experiments/analysis/requirements.txt
 fi
-for sweep in 02-small-sweep 03-load-sweep; do
+sweeps=(02-small-sweep 03-load-sweep)
+# H2 uses h2-report.py: timeout inference in these notebooks only fits 10 KB flows.
+for sweep in "${sweeps[@]}"; do
     for notebook in experiments/analysis/*.ipynb; do
         RESULTS_DIR=$BATCH_DIR SWEEP=$sweep experiments/analysis/.venv/bin/jupyter nbconvert \
             --to notebook --execute --ExecutePreprocessor.timeout=3600 --output-dir "$BATCH_DIR/analysis" \
