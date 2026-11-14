@@ -1,34 +1,36 @@
 # TODO
 
-## Decisions to make
+What is still open, after the results in [ANALYSIS.md](ANALYSIS.md). New sweeps should run the shortest-path bypass only: the adjacent bypass's results so far are enough for H3.
 
-- [ ] **Headline tail metric.** The p99 mostly shows whether more than 1% of flows lost a packet and waited for a timeout, since one timeout (≥ 1 ms) dwarfs queueing (tens of µs). Proposal: report the timeout rate and the p99 of flows with no timeout ("clean p99"), with the raw p99 alongside.
-- [ ] **Lost SYNs.** About 40% of small-flow timeouts are lost handshakes waiting for the 10 ms connection timeout, because every flow opens a new connection. Keep this, reuse connections, or report handshake losses separately?
-- [ ] **Congestion signal.** Queues only drop when full, with no ECN, so losses dominate the tail. Add an ECN or DCTCP variant, or state this as a limitation?
-- [ ] **Which flows count as small.** Sweep the bypass cutoff (`--smallThreshold`) on a workload with many flow sizes (`--flowSizeCdf`) to find the best one.
+## Experiments
 
-## Experiments to add (M3)
-
-- [ ] **Make H2 testable.** Small flows are only 8% of bytes, and small flows between adjacent routers only 1%, so the bypass moves too little traffic to create hotspots. Sweep `--smallFraction`, `--smallBytes` and `--smallThreshold`, and try the published workloads with `--flowSizeCdf=experiments/workloads/websearch.cdf` and `hadoop.cdf`.
-- [ ] **Find the crossover.** `03-load-sweep` stops at load 0.5; add 0.7 and higher.
+- [ ] **Bypass policies.** Test the policies the results point to, first with `bypass-model` (minutes), then in ns-3 under permutation traffic:
+  - skip pairs with a single shortest path;
+  - cap each pair's bypassed share at about 1%, or bypass only a flow's first *N* bytes.
+- [ ] **f under uniform traffic.** "No cost under uniform traffic" is only shown at f = 8.3%. `07-share-sweep` runs f = 8.3, 20, 30% at loads 0.5 and 0.7, with no bypass and the shortest-path bypass; analyze it when it finishes.
+- [ ] **Real workloads.** Run the web search and Hadoop distributions (`--flowSizeCdf=experiments/workloads/websearch.cdf`, `hadoop.cdf`) with "small" at 30 KB and 100 KB (`--smallThreshold`), to show the realistic case directly.
 - [ ] **Timeout sensitivity.** Rerun a slice with other `--minRtoUs` values, which also scales the handshake timeout.
-- [ ] **Traffic pattern.** The proposal promises a pattern sweep, but `--pattern` only supports `uniform` so far.
 - [ ] **More seeds** where a p99 rests on fewer than about 100 flows (the `beyond_p99` column).
 
-## Simulator changes
+## Decisions
 
-- [ ] **Record drops per link** in `links.csv`, separating fabric links from the downlinks to hosts. We only count drops in total, so we can't tell where flows lose packets, for example why bypassed adjacent flows still time out 0.7% of the time at load 0.5.
-- [ ] **Record retransmissions per flow** in `flows.csv`, instead of inferring timeouts from FCT. The inference works for small flows but not for large ones.
+- [ ] **Lost handshakes.** 30–50% of small-flow timeouts are lost connection setups, because every flow opens a new connection. Reuse connections, or report them separately?
+- [ ] **Congestion signal.** Queues only drop when full, with no ECN, so losses set the tail. Add an ECN or DCTCP variant, or state it as a limitation?
 
-## Analysis
+## Simulator
 
-- [ ] Bootstrap confidence intervals for the p99s and p99 ratios
-- [ ] H3: compare the adjacent and shortest bypasses over all small flows, once the shortest-path runs are in
-- [ ] H4: write up the switch-pipeline argument for the overhead
-- [ ] Check the baseline against the paper: path lengths, fan-in, and the 8.4 µs median one-way latency
+- [ ] **Record drops per link** in `links.csv`, separating fabric links from the downlinks to hosts, to see where flows lose packets.
+- [ ] **Record retransmissions per flow** in `flows.csv`, instead of inferring timeouts from completion time, which only works for small flows.
+
+## Analysis and write-up
+
+- [ ] Bootstrap confidence intervals for the p99s, timeout rates and throughput kept
+- [ ] H4: write up the switch-pipeline argument for the overhead, including the shortest-path bypass's second routing table
+- [ ] Check the baseline's median one-way latency against the paper's 8.4 µs
 
 ## Further ideas
 
-- [ ] **Priority queue for small flows.** Routers serve small-flow packets on a priority queue, so they skip queues of large-flow packets and get dropped less.
-- [ ] **Where the flow size comes from.** The simulator tells the sender each flow's size up front; real hosts often don't know it. Try app hints or predicting it from history, and compare with knowing it up front.
-- [ ] **Packet-level Spraypoint + random graph + RDMA** (maybe a different project). Spray each packet instead of each flow, running RDMA on random graph?
+- [ ] **Weighted ECMP.** Plain ECMP is about 3.5× from the paper's best-split oversubscription. Split in proportion to each next hop's downstream capacity, and measure how much of the gap it recovers, with `bypass-model` first.
+- [ ] **Priority queue for small flows.** Routers serve small-flow packets first, so they skip queues of large-flow packets and are dropped less.
+- [ ] **Where the flow size comes from.** The simulator tells the sender each flow's size up front; real hosts often don't know it. Try app hints or predicting it from history.
+- [ ] **Packet-level spraying with RDMA** on a random graph (maybe a separate project).

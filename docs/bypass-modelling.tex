@@ -41,7 +41,7 @@ In a 1000-router RNG fabric, sending small flows on the shortest path cuts their
 
 This guide rebuilds that result from scratch. Steps 1 to 3 explain the RNG paper's own models of Spraypoint~\cite{rng}. Steps 4 to 7 extend each model to the bypass. Step 8 turns the numbers into a policy and into predictions for the ns-3 simulation. Everything assumes the paper's default fabric: $n = 1000$ routers, $d = 64$ fabric links each, $p = 4$, $h = 2$.
 
-Each step ends with what we measured on our own Spraypoint tables, the ones the ns-3 simulation uses. The program \file{bypass-model} computes path lengths, path counts and worst-case throughput directly from the tables (see \hyperref[sec:reproducing]{Reproducing}, at the end). Unless noted, measured numbers at the paper's scale come from 20 random permutations over 2 topology seeds.
+Each step ends with what we measured on our own Spraypoint tables, the ones the ns-3 simulation uses. The program \file{bypass-model} computes path lengths, path counts and worst-case throughput directly from the tables (see \hyperref[sec:reproducing]{Reproducing}, at the end). Unless noted, measured numbers at the paper's scale come from 30 random permutations over 3 topology seeds.
 
 \begin{center}
 \begin{tabularx}{\linewidth}{@{}c >{\hsize=1.1\hsize}L >{\hsize=0.7\hsize}L >{\hsize=1.2\hsize}L@{}}
@@ -54,7 +54,7 @@ Step & Question & Source & Answer at defaults \\
 4 & How long is a bypass path? & Ours & mean 1.95 hops, max 3 \\
 5 & How many lanes does the bypass get? & Ours & 1 (adjacent), about 4 (2 hops), about 60 (3 hops) \\
 6 & Oversubscription with the bypass, ideal routing & Ours & unchanged until $f \approx 5\%$, then $f d / c$ \\
-7 & Oversubscription with the bypass, plain ECMP & Ours, checked numerically & about 11 with no bypass; 96\% / 81\% / 68\% / 51\% of throughput kept at $f$ = 1 / 5 / 10 / 20\% \\
+7 & Oversubscription with the bypass, plain ECMP & Ours, checked numerically & about 11.5 with no bypass; 96\% / 81\% / 68\% / 51\% of throughput kept at $f$ = 1 / 5 / 10 / 20\% \\
 8 & What $f$ should we allow, and what should ns-3 show? & Ours & $f \approx 1\%$ (plain ECMP), up to $\approx 5\%$ (adaptive) \\
 \bottomrule
 \end{tabularx}
@@ -315,7 +315,7 @@ Oversubscription is $1 / 0.306 \approx \mathbf{3.27}$, against 3.25 from the pap
 \textbf{Important caveat.} 3.27 is the best possible split, as an LP would choose. Plain ECMP splitting evenly does much worse, about 11 (Step 7). The paper doesn't claim switches run an LP. In production it relies on multipath transports that move flowlets away from congested paths to close the gap (§8).
 
 \begin{checked}
-Our LP solver, restricted to Spraypoint paths, gives 3.20 on average and at most 3.30 over 20 permutations, matching the model and the paper.
+Our LP solver, restricted to Spraypoint paths, gives 3.20 on average and at most 3.30 over 30 permutations, matching the model and the paper.
 \end{checked}
 
 \section{How long is a bypass path? (ours)}
@@ -449,7 +449,7 @@ adjacent, widened to $\le 2$ hops & about 5 & $f \approx 26\%$ & 3.27 & 3.27 \\
 \textbf{When single-path pairs share a link.} The model looks at each pair on its own. With the full shortest-path bypass, the one shortest path of two unlucky pairs can run over the same link, which then carries $2 f d$. In those permutations the knee halves, to about $3.27 / (2 \cdot 64) \approx 2.6\%$. The adjacent-only bypass can't collide this way, since each pair's direct link is its own.
 
 \begin{checked}
-With the adjacent bypass, the LP stays at 3.20 up to $f = 5\%$, then follows $64 f$ exactly: 3.86 at 6\%, 6.43 at 10\%, 12.86 at 20\%. With the shortest-path bypass, the average follows the same curve (3.37 at 5\%, 6.75 at 10\%), but the worst permutations break early: 3.87 at 3\%, 5.17 at 4\% and 6.46 at 5\%, each exactly $2 \cdot 64 f$. So the network-wide knee is about 5\% for the adjacent bypass, and between 2.6\% and 5\% for the shortest-path bypass, depending on the permutation.
+With the adjacent bypass, the LP stays at 3.20 up to $f = 5\%$, then follows $64 f$ exactly: 3.86 at 6\%, 6.43 at 10\%, 12.86 at 20\%. With the shortest-path bypass, the average follows the same curve (3.31 at 5\%, 6.65 at 10\%), but the worst permutations break early: 3.87 at 3\%, 5.17 at 4\% and 6.46 at 5\%, each exactly $2 \cdot 64 f$. So the network-wide knee is about 5\% for the adjacent bypass, and between 2.6\% and 5\% for the shortest-path bypass, depending on the permutation.
 \end{checked}
 
 \section{What plain ECMP actually does (ours, with a numerical check)}
@@ -475,17 +475,17 @@ With plain ECMP the bypass has a cost at every $f$, not just past 5\%. Our compu
   \item Oversubscription is the load on the busiest link, in units of its capacity.
 \end{enumerate}
 
-\textbf{Results.} With no bypass, oversubscription averages 11.3 over 20 permutations, from 10.3 to 12.5. The busiest link carries about $3\times$ the average link's load.
+\textbf{Results.} With no bypass, oversubscription averages 11.5 over 30 permutations, from 10.3 to 14.5. The busiest link carries about $3\times$ the average link's load.
 
 \begin{center}
 \begin{tabular}{@{}rccc@{}}
 \toprule
-$f$ & Kept, adjacent bypass & Kept, shortest-path bypass & Simple model ($O_{\text{ecmp}} = 11.3$, $c = 1$) \\
+$f$ & Kept, adjacent bypass & Kept, shortest-path bypass & Simple model ($O_{\text{ecmp}} = 11.5$, $c = 1$) \\
 \midrule
 1\% & 96\% & 96\% & 96\% \\
 2\% & 92\% & 92\% & 92\% \\
 5\% & 81\% & 81\% & 81\% \\
-10\% & 68\% & 68\% & 68\% \\
+10\% & 68\% & 68\% & 69\% \\
 20\% & 51\% & 50\% & 52\% \\
 \bottomrule
 \end{tabular}
@@ -564,18 +564,31 @@ With a cutoff of about 30\,KB, both stay under 1\%. A cutoff of 100\,KB pushes H
 \small
 \begin{tabularx}{\linewidth}{@{}c >{\hsize=1.3\hsize}L >{\hsize=0.6\hsize}L >{\hsize=1.1\hsize}L@{}}
 \toprule
-\# & Prediction & From & How to check \\
+\# & Prediction & From & Result \\
 \midrule
-H1 & Small-flow mean path drops from about 3.6 to about 1.95 hops, and FCT drops with it & Steps 1, 4 & hop count and FCT (p50, p99) per small flow; confirmed in \file{03-load-sweep} \\
-H2 & Throughput kept vs $f$ follows Step 7 under plain ECMP & Steps 6, 7 & sweep $f$ under permutation traffic near saturation (\file{06-permutation}) \\
-H3 & The adjacent-only bypass helps 6.4\% of pairs & Step 4 & count adjacent pairs in the topology; measured 6.4\% \\
-new & Throughput loss is concentrated on pairs with $c = 1$ & Steps 5, 6 & loss against each pair's $c$ \\
-check & Spraypoint lanes about 55 (model), median about 60 (paper) & Step 2 & measured median 59 \\
+H1 & Small-flow mean path drops from about 3.6 to about 1.95 hops, and FCT drops with it & Steps 1, 4 & Confirmed (\file{03-load-sweep}): 2.36 hops at our scale, as predicted; median FCT $-25$ to $-45\%$ \\
+H2 & Throughput kept vs $f$ follows Step 7 under plain ECMP & Steps 6, 7 & Confirmed near saturation (\file{06-permutation}): worst pair within 0--5 points of the model at load 0.4 \\
+H3 & The adjacent-only bypass helps 6.4\% of pairs & Step 4 & Confirmed: 6.4\% \\
+new & Throughput loss is concentrated on pairs with $c = 1$ & Steps 5, 6 & Confirmed on average; a few 3-hop pairs also lose \\
+check & Spraypoint lanes about 55 (model), median about 60 (paper) & Step 2 & Measured median 59 \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
-At low load the bypass is free: the cost above only shows when links are close to full.
+\textbf{What ns-3 showed.} Under permutation traffic on the 256-router network, at load 0.4, near where the flow-level check puts the busiest link's saturation, the worst pair's large-flow throughput kept matches Step 7's prediction for the same permutation:
+
+\begin{center}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& $f = 8.3\%$ & $f = 20\%$ & $f = 30\%$ \\
+\midrule
+Adjacent bypass: model / ns-3 & 96\% / 93\% & 88\% / 83\% & 80\% / 76\% \\
+Shortest-path bypass: model / ns-3 & 93\% / 89\% & 82\% / 81\% & 69\% / 69\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+At load 0.1 the worst pair keeps about 96\% at every $f$, which is ns-3's noise floor, so the bypass is free at low load, as predicted. What the models can't predict is latency: from load 0.3, small flows between neighbouring routers time out 2--7$\times$ more often with the bypass, because their one direct link fills before throughput suffers. Results are in \file{docs/ANALYSIS.md}.
 
 \subsection*{At our simulation's scale}
 
