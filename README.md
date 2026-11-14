@@ -2,11 +2,14 @@
 
 This project tests whether routing small flows on shortest paths, instead of spraying them, lowers their tail latency on the fabric from *RNG: Flat Datacenter Networks at Scale*, and what that costs other traffic. See the [proposal](docs/PROJECT_PROPOSAL.md).
 
-The repository has three programs:
+The repository has four programs:
 
-- **Verifier:** checks that the Spraypoint logic is correct, against the paper.
-- **TCP experiment:** an ns-3 simulation measuring flow completion times under default Spraypoint.
-- **TCP bypass:** the same simulation with a small-flow bypass, on the direct link between neighboring routers (`--bypass=adjacent`) or on shortest paths between all routers (`--bypass=shortest`).
+- **Verifier** (`spraypoint-verifier`): checks that the Spraypoint logic is correct, against the paper.
+- **Model check** (`bypass-model`): checks the bypass's models on the same routing tables, without simulating packets: path lengths, shortest-path counts, and worst-case throughput as the small flows' share of bytes grows.
+- **TCP experiment** (`tcp-experiment`): an ns-3 simulation measuring flow completion times under default Spraypoint.
+- **TCP bypass** (`tcp-bypass`): the same simulation with a small-flow bypass, on the direct link between neighboring routers (`--bypass=adjacent`) or on shortest paths between all routers (`--bypass=shortest`).
+
+What the results show so far is in [docs/ANALYSIS.md](docs/ANALYSIS.md), and what is still open in [docs/TODO.md](docs/TODO.md).
 
 The first CMake configure downloads, builds, and installs the pinned official ns-3 under `third_party/`, which takes several minutes and happens once.
 
@@ -36,8 +39,9 @@ Keep this table in step with the scripts in `experiments/`, which are the source
 | `03-load-sweep` | 256 | 16 | 4 | 4 ms | 0.1, 0.3, 0.5 | 561–563 | none, adjacent, shortest | 1 ms |
 | `04-oversubscription` | 256 | 16 | 6, 8 | 4 ms | 0.5 | 561–563 | none, adjacent, shortest | 1 ms |
 | `06-permutation` | 256 | 16 | 4 | 4 ms | 0.1, 0.2, 0.3, 0.4 | 561–563 | none, adjacent, shortest | 1 ms |
+| `07-share-sweep` | 256 | 16 | 4 | 4 ms | 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
 
-`06-permutation` sends each router's traffic only to one partner router, and sweeps the small flows' size, 10, 27.8 and 47.6 KB, so that they carry 8%, 20% and 30% of the bytes.
+`06-permutation` sends each router's traffic only to one partner router, and sweeps the small flows' size, 10, 27.8 and 47.6 KB, so that they carry 8%, 20% and 30% of the bytes. `07-share-sweep` sweeps the same sizes under uniform traffic.
 
 `05-bypass-model` is not a simulation. It checks the models in [docs/bypass-modelling.tex](docs/bypass-modelling.tex) against the routing tables with `bypass-model`, at 256 routers of degree 16 and 1,000 of degree 64, for seeds 561–563.
 
@@ -46,7 +50,7 @@ All simulations share these settings, except where noted above:
 - **Routing:** 4 waypoints and 2 pointing next hops
 - **Links:** 100 Gbps with 500 ns delay
 - **Queues:** 100 packets at routers and 1,000 at hosts
-- **Traffic:** uniform random hosts, with 90% of flows at 10 KB and 10% at 1 MB
+- **Traffic:** uniform random hosts, with 90% of flows at 10 KB and 10% at 1 MB, so small flows carry 8.3% of the bytes
 - **TCP:** 1 ms minimum retransmission timeout
 
 ## Workflow
@@ -69,11 +73,13 @@ JOBS=3 experiments/04-oversubscription-bypass.sh
 JOBS=1 experiments/05-bypass-model.sh           # flow-level model check; each run uses every core
 JOBS=6 experiments/06-permutation-baseline.sh  # permutation traffic around saturation
 JOBS=6 experiments/06-permutation-bypass.sh
+JOBS=4 experiments/07-share-sweep-baseline.sh  # small flows' share of bytes, uniform traffic
+JOBS=4 experiments/07-share-sweep-bypass.sh
 cmake --build build --target format            # format the C++ code before committing
 ```
 
 - **Reproduce an experiment:** run its script. It builds what it needs, and rerunning skips finished runs, so an interrupted experiment picks up where it stopped.
-- **Analyze results:** run `python3 -m venv experiments/analysis/.venv && experiments/analysis/.venv/bin/pip install -r experiments/analysis/requirements.txt` once, then `experiments/analysis/.venv/bin/jupyter lab experiments/analysis/`. The notebooks use whatever runs have finished in the newest batch with the sweep they analyze, `03-load-sweep` unless `SWEEP` picks another, such as `04-oversubscription` (hosts per router instead of loads) or `06-permutation` (the small flows' share of bytes and the load). `03-model-check.ipynb` compares `06-permutation` with the flow-level check in `05-bypass-model`; set `RESULTS_MACHINE` and `RESULTS_BATCH` to pick another batch.
+- **Analyze results:** run `python3 -m venv experiments/analysis/.venv && experiments/analysis/.venv/bin/pip install -r experiments/analysis/requirements.txt` once, then `experiments/analysis/.venv/bin/jupyter lab experiments/analysis/`. The notebooks use whatever runs have finished in the newest batch with the sweep they analyze, `03-load-sweep` unless `SWEEP` picks another, such as `04-oversubscription` (hosts per router instead of loads) or `06-permutation` and `07-share-sweep` (the small flows' share of bytes and the load). `03-model-check.ipynb` compares `06-permutation` with the flow-level check in `05-bypass-model`; set `RESULTS_MACHINE` and `RESULTS_BATCH` to pick another batch.
 - **Run on a server:** copy `.env.example` to `.env` and fill in the login, then run `./REMOTE.sh start`. It sends the current commit and runs `./REPRODUCE.sh` there, which keeps going after you disconnect. `./REMOTE.sh status` or `logs` shows its progress, and `./REMOTE.sh fetch` copies the results into `experiments/results/remote/`. The server needs `git`, `cmake`, `make`, a C++ compiler, and `python3` with `venv`, and password logins need `sshpass` locally (`brew install sshpass`).
 - **Add an experiment:** copy a script in `experiments/` and change its settings.
 - **Add a test:** create `test/<name>/` with a `CMakeLists.txt`, and add it to `test/CMakeLists.txt`.

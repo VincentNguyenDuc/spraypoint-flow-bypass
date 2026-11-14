@@ -35,12 +35,16 @@ experiments/02-small-sweep-baseline.sh
 experiments/02-small-sweep-bypass.sh
 experiments/03-load-sweep-baseline.sh
 experiments/03-load-sweep-bypass.sh
-experiments/04-oversubscription-baseline.sh
-experiments/04-oversubscription-bypass.sh
+# The 8-host and load-0.7 runs need 6-8 GB each, so at most 4 run at once.
+BIG_JOBS=$((${JOBS:-1} < 4 ? ${JOBS:-1} : 4))
+JOBS=$BIG_JOBS experiments/04-oversubscription-baseline.sh
+JOBS=$BIG_JOBS experiments/04-oversubscription-bypass.sh
 # Each run of the model check already uses every core.
 JOBS=1 experiments/05-bypass-model.sh
 experiments/06-permutation-baseline.sh
 experiments/06-permutation-bypass.sh
+JOBS=$BIG_JOBS experiments/07-share-sweep-baseline.sh
+JOBS=$BIG_JOBS experiments/07-share-sweep-bypass.sh
 
 step "Analysis"
 if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then
@@ -53,7 +57,7 @@ run_notebook() {
         --to notebook --execute --ExecutePreprocessor.timeout=3600 --output-dir "$BATCH_DIR/analysis" \
         --output "$1-$(basename "$2")" "$2"
 }
-for sweep in 02-small-sweep 03-load-sweep 04-oversubscription 06-permutation; do
+for sweep in 02-small-sweep 03-load-sweep 04-oversubscription 06-permutation 07-share-sweep; do
     run_notebook "$sweep" experiments/analysis/01-baseline.ipynb
     run_notebook "$sweep" experiments/analysis/02-bypass-comparison.ipynb
 done

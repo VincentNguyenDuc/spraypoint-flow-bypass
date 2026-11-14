@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 RESULTS_ROOT = ROOT / "experiments" / "results"
 
 # The sweep the notebooks analyze: 03-load-sweep, which keeps the full-scale design's
-# proportions, or 02-small-sweep, 04-oversubscription, 06-permutation, or 01-smoke for
-# a quick check that the notebooks run, though its runs are too short for tail numbers.
+# proportions, or 02-small-sweep, 04-oversubscription, 06-permutation, 07-share-sweep,
+# or 01-smoke for a quick check that the notebooks run, though its runs are too short for tail numbers.
 SWEEP = os.environ.get("SWEEP", "03-load-sweep")
 BASELINE_EXPERIMENT = f"{SWEEP}-baseline"
 BYPASS_EXPERIMENT = f"{SWEEP}-bypass"
@@ -25,8 +25,13 @@ BYPASS_EXPERIMENT = f"{SWEEP}-bypass"
 # with one panel per value of the others (see panels).  Most sweeps vary the offered
 # load.  04-oversubscription holds the load at 0.5 and varies the hosts per router,
 # which makes the fabric busier while each host link stays at the same load.
-# 06-permutation varies both the small flows' share of bytes and the load.
-SETTINGS = {"04-oversubscription": ["hosts"], "06-permutation": ["share", "load"]}.get(SWEEP, ["load"])
+# 06-permutation and 07-share-sweep vary both the small flows' share of bytes and the
+# load, under permutation and uniform traffic.
+SETTINGS = {
+    "04-oversubscription": ["hosts"],
+    "06-permutation": ["share", "load"],
+    "07-share-sweep": ["share", "load"],
+}.get(SWEEP, ["load"])
 SETTING = SETTINGS[-1]
 SETTING_LABELS = {"load": "Offered load", "hosts": "Hosts per router", "share": "Small flows' share of bytes"}
 SETTING_LABEL = SETTING_LABELS[SETTING]
