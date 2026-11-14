@@ -12,7 +12,7 @@
 - [ ] **Make H2 testable.** The matrix in `04-h2-sweep.sh` covers small-flow fractions, sizes, and WebSearch/Hadoop cutoffs. `experiments/run-h2.sh` uses a global CPU/memory-admitted queue over the frozen matrix and refreshes `analysis/H2.md` per batch. Keep open until all runs and their analysis finish; memory-deferred runs remain pending.
 - [ ] **Find the crossover.** `03-load-sweep` now includes loads 0.7 and 0.9; the H2 report compares modes on identical flows and marks exploratory crossover candidates. Keep open until the extended sweep finishes and is reviewed.
 - [ ] **Timeout sensitivity.** Rerun a slice with other `--minRtoUs` values, which also scales the handshake timeout.
-- [ ] **Traffic pattern.** The proposal promises a pattern sweep, but `--pattern` only supports `uniform` so far.
+- [ ] **Traffic pattern.** `--pattern` now supports reproducible uniform, permutation, hotspot, and asynchronous incast; pure generator/regression tests pass. The comparative pattern sweep remains pending. See `src/tcp/traffic-pattern.md` for normalization and listener limits.
 - [ ] **More seeds** where a p99 rests on fewer than about 100 flows (the `beyond_p99` column).
 
 ## Simulator changes

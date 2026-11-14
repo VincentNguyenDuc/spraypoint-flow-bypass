@@ -22,7 +22,12 @@ AddTcpOptions(ns3::CommandLine& cmd, TcpExperimentConfig& config)
     cmd.AddValue("minRtoUs", "Minimum retransmission timeout in microseconds", config.minRtoUs);
     cmd.AddValue("maxSimMs", "Stop after this much simulated time", config.maxSimMs);
     cmd.AddValue("spanMs", "Generate flows for this much simulated time, or 0", config.spanMs);
-    cmd.AddValue("pattern", "Traffic pattern (uniform)", config.pattern);
+    cmd.AddValue("pattern", "Traffic pattern (uniform, permutation, hotspot, incast)", config.pattern);
+    cmd.AddValue("permutationShift", "Host-ID offset for permutation traffic", config.permutationShift);
+    cmd.AddValue("hotspotHosts", "Number of hotspot destination hosts starting at ID zero", config.hotspotHosts);
+    cmd.AddValue("hotspotFraction", "Fraction of flows to hotspot destinations", config.hotspotFraction);
+    cmd.AddValue("incastDestination", "Destination host ID for asynchronous incast", config.incastDestination);
+    cmd.AddValue("incastFanIn", "Number of cyclic incast senders; zero means all other hosts", config.incastFanIn);
     cmd.AddValue("flowSizeCdf", "Flow-size CDF file, replacing the two sizes", config.flowSizeCdf);
     cmd.AddValue("smallThreshold",
                  "Flows up to this many bytes are small; default smallBytes",

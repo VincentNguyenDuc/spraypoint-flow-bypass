@@ -40,6 +40,11 @@ struct TcpExperimentConfig
     double spanMs{0};      // stop generating after this much simulated time; 0 means no limit
     double load{0.1};      // offered load as a fraction of total host link capacity
     std::string pattern{"uniform"};
+    uint32_t permutationShift{1};
+    uint32_t hotspotHosts{1};
+    double hotspotFraction{0.9};
+    uint32_t incastDestination{0};
+    uint32_t incastFanIn{0};
     uint32_t smallBytes{10000};
     uint32_t largeBytes{1000000};
     double smallFraction{0.9};  // fraction of flows, not of bytes, that are small

@@ -162,6 +162,14 @@ cmake --build build --target format            # format the C++ code before comm
 - **Add a test:** create `test/<name>/` with a `CMakeLists.txt`, and add it to `test/CMakeLists.txt`.
 - **Run with other settings:** pass options to a program in `build/bin/`. `--PrintHelp` lists the options of `tcp-experiment` and `tcp-bypass`, and `--help` lists those of `spraypoint-verifier`.
 
+New batches can select `--pattern=permutation`, `hotspot`, or `incast`, with
+`--permutationShift`, `--hotspotHosts`, `--hotspotFraction`, `--incastDestination`,
+and `--incastFanIn` as appropriate. The default uniform workload retains its RNG
+draw order. [Traffic-pattern semantics](src/tcp/traffic-pattern.md) defines the
+unchanged aggregate-load denominator, asynchronous incast, and the per-destination
+listener limit; a concentrated destination can overload at a low aggregate load.
+These options do not change frozen H2 batches or establish pattern-sweep results.
+
 `links.csv` includes directed `fabric`, `downlink` (router to host), and
 `host_nic` (host to router) ports. `queue_drops` counts traffic-control drops at
 that port; `device_drops` counts device transmit drops separately. The summary's

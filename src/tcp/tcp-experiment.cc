@@ -1,5 +1,6 @@
 #include "tcp-experiment.h"
 #include "egress-port-tag.h"
+#include "traffic-pattern.h"
 
 #include "spraypoint/hash.h"
 
@@ -29,6 +30,17 @@ namespace
 const uint32_t SEGMENT_BYTES = 1448; // 1500 MTU less IP, TCP, and timestamp headers
 const uint8_t INITIAL_TTL = 64;
 const uint32_t PATH_BUCKETS = 8; // fabric hops 0..6, then 7 or more
+
+TrafficPatternConfig
+PatternConfig(const TcpExperimentConfig& config)
+{
+    return {.pattern = config.pattern,
+            .permutationShift = config.permutationShift,
+            .hotspotHosts = config.hotspotHosts,
+            .hotspotFraction = config.hotspotFraction,
+            .incastDestination = config.incastDestination,
+            .incastFanIn = config.incastFanIn};
+}
 
 double
 Percentile(std::vector<double> values, double quantile)
@@ -94,17 +106,15 @@ TcpExperiment::TcpExperiment(const TcpExperimentConfig& config)
     {
         throw std::runtime_error("set flows or spanMs to limit the workload");
     }
-    if (config.pattern != "uniform")
+    const TrafficPattern pattern(CheckedTrafficHostCount(config.nodes, config.hostsPerRouter),
+                                 PatternConfig(config));
+    if (config.spanMs == 0 && config.flows > pattern.MaximumFlows())
     {
-        throw std::runtime_error("unknown pattern " + config.pattern + "; use uniform");
+        throw std::runtime_error("requested flows exceed the pattern's destination listener capacity");
     }
     if (config.linkGbps <= 0 || config.fabricQueuePackets == 0 || config.nicQueuePackets == 0)
     {
         throw std::runtime_error("link rate and queue sizes must be positive");
-    }
-    if (config.hostsPerRouter == 0 || config.nodes * config.hostsPerRouter < 2)
-    {
-        throw std::runtime_error("need at least two hosts");
     }
     if (config.load <= 0 || config.smallBytes == 0 || config.largeBytes == 0)
     {
@@ -335,15 +345,14 @@ TcpExperiment::GenerateFlows()
     const double meanBytes = m_flowSizes ? m_flowSizes->Mean()
                                          : m_config.smallFraction * m_config.smallBytes +
                                                (1 - m_config.smallFraction) * m_config.largeBytes;
-    const double capacityBytesPerSecond = hosts * m_config.linkGbps * 1e9 / 8;
-    const double arrivalsPerSecond = m_config.load * capacityBytesPerSecond / meanBytes;
+    const double arrivalsPerSecond = TrafficArrivalRate(hosts, m_config.linkGbps, m_config.load, meanBytes);
 
     std::mt19937_64 rng(Key(m_config.seed, 0xf10, 0xb07));
-    std::uniform_int_distribution<uint32_t> pickHost(0, hosts - 1);
+    TrafficPattern pattern(hosts, PatternConfig(m_config));
     std::uniform_real_distribution<double> uniform(0.0, 1.0);
     std::exponential_distribution<double> gap(arrivalsPerSecond);
 
-    std::vector<uint32_t> nextPort(hosts, 10000); // by destination host
+    TrafficListenerPorts ports(hosts);
     double now = 0;
     for (uint32_t index = 0; m_config.flows == 0 || index < m_config.flows; ++index)
     {
@@ -353,11 +362,9 @@ TcpExperiment::GenerateFlows()
             break;
         }
         Flow flow;
-        flow.sourceHost = pickHost(rng);
-        do
-        {
-            flow.destinationHost = pickHost(rng);
-        } while (flow.destinationHost == flow.sourceHost);
+        const auto pair = pattern.Select(rng);
+        flow.sourceHost = pair.sourceHost;
+        flow.destinationHost = pair.destinationHost;
         const double sizeDraw = uniform(rng);
         if (m_flowSizes)
         {
@@ -373,12 +380,7 @@ TcpExperiment::GenerateFlows()
 
         // One listener per flow identifies the flow on receipt, and gives each
         // flow its own 5-tuple to hash.
-        const auto port = nextPort[flow.destinationHost]++;
-        if (port == 0xffff)
-        {
-            throw std::runtime_error("too many flows to one host");
-        }
-        flow.port = static_cast<uint16_t>(port);
+        flow.port = ports.Allocate(flow.destinationHost);
         m_flows.push_back(flow);
     }
     if (m_flows.empty())
@@ -663,6 +665,11 @@ TcpExperiment::PrintResults(std::ostream& out) const
         << " small-fraction=" << m_config.smallFraction << " min-rto-us=" << m_config.minRtoUs
         << " seed=" << m_config.seed << "\n"
         << "settings pattern=" << m_config.pattern << " span-ms=" << m_config.spanMs
+        << " permutation-shift=" << m_config.permutationShift
+        << " hotspot-hosts=" << m_config.hotspotHosts
+        << " hotspot-fraction=" << m_config.hotspotFraction
+        << " incast-destination=" << m_config.incastDestination
+        << " incast-fan-in=" << m_config.incastFanIn
         << " flow-size-cdf=" << (m_config.flowSizeCdf.empty() ? "none" : m_config.flowSizeCdf)
         << " small-threshold=" << m_smallThreshold << " link-gbps=" << m_config.linkGbps
         << " link-delay-ns=" << m_config.linkDelayNs
