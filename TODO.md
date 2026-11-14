@@ -18,7 +18,7 @@
 ## Simulator changes
 
 - [x] **Record drops per link** in `links.csv`, separating fabric links, downlinks to hosts, and host NICs. The congested `tcp-port-drops` test passes with no unattributed drops and reconciles per-port counters with the summary. H2 analysis repeats this reconciliation for every completed run.
-- [ ] **Record retransmissions per flow** in `flows.csv`, instead of inferring timeouts from FCT. The `data_retransmissions` column now counts sender data-segment retransmissions (including fast retransmissions), but the ns-3 trace does not count SYN/SYN-ACK or FIN retransmissions and does not distinguish timeouts. Handshake losses and timeout classification still need separate instrumentation. The FCT inference works for small flows but not for large ones.
+- [x] **Record retransmissions per flow** in new `flows.csv` outputs: data attempts, exact data-RTO handler events, RTO/fast-recovery/other categories, and SYN/SYN-ACK retries. The passive socket observer and stock-TCP parity/lifecycle tests pass. Handshake timer expirations remain explicitly unavailable (blank), FIN retries are excluded, and existing frozen H2 outputs cannot gain these counters. See `src/tcp/tcp-diagnostics.md`; handshake policy remains a separate decision.
 
 ## Analysis
 

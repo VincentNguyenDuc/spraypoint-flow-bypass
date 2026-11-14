@@ -188,5 +188,11 @@ that port; `device_drops` counts device transmit drops separately. The summary's
 `unattributed_router_queue` reports router drops whose output port could not be
 identified and should be checked before interpreting per-port totals. Fabric byte
 and arrival counters apply only to fabric rows. Older results contain fabric rows
-only. `flows.csv` records sender data-segment retransmissions; handshake and FIN
-retransmissions are not included.
+only. New `flows.csv` files record data retransmissions, exact data-RTO handler
+events, RTO/fast-recovery/other data retransmission categories, and SYN/SYN-ACK
+retries through sink completion. `handshake_timeouts` is explicitly blank because
+retry transmissions do not identify timer expirations; FIN retries are excluded.
+[TCP diagnostic definitions](src/tcp/tcp-diagnostics.md) describes this distinction,
+the passive project-owned socket factory, and the tiny stock-TCP parity tests.
+Running frozen H2 batches retain their original fields and cannot be retrofitted
+with newly observed counters.
