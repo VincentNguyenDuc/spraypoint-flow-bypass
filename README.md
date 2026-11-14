@@ -21,6 +21,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how these fit together.
 - `experiments/`: one script per experiment, writing to `experiments/results/<machine>/<batch>/<script name>/`
 - `experiments/analysis/`: notebooks that read one batch of `experiments/results/`
 - [ANALYSIS.md](ANALYSIS.md): what the results show so far
+- [OVERHEAD.md](OVERHEAD.md): H4's pipeline design, state requirements, and hardware-validation limits
 - `REPRODUCE.sh`: runs every step, from building to the analysis
 - `REMOTE.sh`: runs `REPRODUCE.sh` on a server over SSH
 - `cmake/Ns3.cmake`: fetches and builds ns-3

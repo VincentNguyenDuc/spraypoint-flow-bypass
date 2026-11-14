@@ -24,7 +24,7 @@
 
 - [ ] Bootstrap confidence intervals for the p99s and p99 ratios
 - [ ] H3: compare the adjacent and shortest bypasses over all small flows, once the shortest-path runs are in
-- [ ] H4: write up the switch-pipeline argument for the overhead
+- [x] H4: write up the switch-pipeline argument for the overhead ([OVERHEAD.md](OVERHEAD.md)). The argument is conditional on target resources; exact stage/latency cost and hardware validation remain unmeasured.
 - [ ] Check the baseline against the paper: path lengths, fan-in, and the 8.4 µs median one-way latency
 
 ## Further ideas

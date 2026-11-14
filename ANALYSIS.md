@@ -102,7 +102,12 @@ The bypass still lowers the clean p99 by 7–12%. At this load the tail is set b
 
 ## H4: Overhead
 
-This is not measured, as the proposal planned. H4 is argued from the switch pipeline and is still to be written: see [TODO.md](TODO.md).
+The [H4 pipeline analysis](OVERHEAD.md) describes a destination-based override,
+its metadata and route/ECMP state, and the conditions under which processing cost
+could be small. Exactly one extra logical lookup is not a hardware-stage or
+latency guarantee. The ns-3 route selection adds no simulated processing delay,
+so H2 cannot validate that overhead. Target compilation and hardware measurements
+remain unperformed; H4 is supported only as a conditional design argument.
 
 ## Limitations
 
