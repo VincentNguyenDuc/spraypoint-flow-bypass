@@ -121,6 +121,18 @@ For paired seed/topology-cluster p99 intervals, use
 estimands, pairing checks, censoring and few-seed limitations. The tool does not
 modify the running batch or imply that three seeds establish a crossover.
 
+Two additional read-only analysis tools are available for new offline outputs:
+
+- [`workload_cdf.py`](experiments/analysis/workload_cdf.py) computes expected flow
+  and byte coverage for each cutoff, including the simulator's size rounding.
+  [CDF coverage documentation](experiments/analysis/WORKLOAD_CDF.md) explains the
+  difference from the continuous mean used for arrival rates.
+- [`h3_report.py`](experiments/analysis/h3_report.py) validates three-mode pairs
+  from a stable `h2-runs.csv`, then writes descriptive per-seed comparisons,
+  incremental shortest-path reach and within-condition Pareto tables to a new
+  directory outside the input batch. [H3_REPORT.md](experiments/analysis/H3_REPORT.md)
+  documents exclusions, sample warnings and why it does not rank cutoffs globally.
+
 To run everything including the original small sweep and analysis notebooks, use
 `RUN_H2=1 JOBS=8 MEMORY_BUDGET_GB=12 ./REPRODUCE.sh` (choose JOBS for available memory).
 For one scenario, set a shared `RESULTS_BATCH` for both commands, e.g.:

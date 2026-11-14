@@ -5,7 +5,7 @@
 - [ ] **Headline tail metric.** The p99 mostly shows whether more than 1% of flows lost a packet and waited for a timeout, since one timeout (≥ 1 ms) dwarfs queueing (tens of µs). Proposal: report the timeout rate and the p99 of flows with no timeout ("clean p99"), with the raw p99 alongside.
 - [ ] **Lost SYNs.** About 40% of small-flow timeouts are lost handshakes waiting for the 10 ms connection timeout, because every flow opens a new connection. Keep this, reuse connections, or report handshake losses separately?
 - [ ] **Congestion signal.** Queues only drop when full, with no ECN, so losses dominate the tail. Add an ECN or DCTCP variant, or state this as a limitation?
-- [ ] **Which flows count as small.** Sweep the bypass cutoff (`--smallThreshold`) on a workload with many flow sizes (`--flowSizeCdf`) to find the best one.
+- [ ] **Which flows count as small.** H2 sweeps the cutoff on CDF workloads. `workload_cdf.py` computes expected flow/byte coverage and `h3_report.py` describes matched routing tradeoffs. Threshold selection still needs completed results and a common population/objective across cutoffs.
 
 ## Experiments to add (M3)
 
@@ -23,7 +23,7 @@
 ## Analysis
 
 - [ ] Bootstrap confidence intervals for the p99s and p99 ratios. Paired seed/topology-cluster tooling and synthetic tests are implemented in `experiments/analysis/bootstrap.py`; applying it to completed H2 results and assessing few-seed/tail-sample limitations remain pending.
-- [ ] H3: compare the adjacent and shortest bypasses over all small flows, once the shortest-path runs are in
+- [ ] H3: compare the adjacent and shortest bypasses over all small flows. Validated `h3_report.py` tooling and synthetic tests are implemented; apply it to stable, completed H2 results. It reports per-seed all-small quantiles and shortest-versus-adjacent reach/gain, with no cross-cutoff optimality claim.
 - [x] H4: write up the switch-pipeline argument for the overhead ([OVERHEAD.md](OVERHEAD.md)). The argument is conditional on target resources; exact stage/latency cost and hardware validation remain unmeasured.
 - [ ] Check the baseline against the paper: path lengths, fan-in, and the 8.4 µs median one-way latency
 
