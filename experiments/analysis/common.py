@@ -14,23 +14,44 @@ ROOT = Path(__file__).resolve().parents[2]
 RESULTS_ROOT = ROOT / "experiments" / "results"
 
 # The sweep the notebooks analyze: 03-load-sweep, which keeps the full-scale design's
-# proportions, or 02-small-sweep, 04-oversubscription, or 01-smoke for a quick check
-# that the notebooks run, though its runs are too short for tail numbers.
+# proportions, or 02-small-sweep, 04-oversubscription, 06-permutation, or 01-smoke for
+# a quick check that the notebooks run, though its runs are too short for tail numbers.
 SWEEP = os.environ.get("SWEEP", "03-load-sweep")
 BASELINE_EXPERIMENT = f"{SWEEP}-baseline"
 BYPASS_EXPERIMENT = f"{SWEEP}-bypass"
 
-# What varies between a sweep's runs besides the seed and the bypass mode, which every
-# table groups by and every plot puts on its x-axis.  Most sweeps vary the offered load;
-# 04-oversubscription holds the load at 0.5 and varies the hosts per router, which
-# makes the fabric busier while each host link stays at the same load.
-SETTING = {"04-oversubscription": "hosts"}.get(SWEEP, "load")
-SETTING_LABEL = {"load": "Offered load", "hosts": "Hosts per router"}[SETTING]
+# What varies between a sweep's runs besides the seed and the bypass mode.  Every table
+# groups by all of SETTINGS, and every plot puts the last one, SETTING, on its x-axis,
+# with one panel per value of the others (see panels).  Most sweeps vary the offered
+# load.  04-oversubscription holds the load at 0.5 and varies the hosts per router,
+# which makes the fabric busier while each host link stays at the same load.
+# 06-permutation varies both the small flows' share of bytes and the load.
+SETTINGS = {"04-oversubscription": ["hosts"], "06-permutation": ["share", "load"]}.get(SWEEP, ["load"])
+SETTING = SETTINGS[-1]
+SETTING_LABELS = {"load": "Offered load", "hosts": "Hosts per router", "share": "Small flows' share of bytes"}
+SETTING_LABEL = SETTING_LABELS[SETTING]
 
 
-def setting_name(value):
-    """A label for one setting, such as "Load 0.5" or "6 hosts per router"."""
-    return f"Load {value:g}" if SETTING == "load" else f"{value:g} hosts per router"
+def setting_name(value, setting=SETTING):
+    """A label for one setting, such as "Load 0.5", "6 hosts per router" or "Small flows
+    20% of bytes"."""
+    if setting == "load":
+        return f"Load {value:g}"
+    if setting == "hosts":
+        return f"{value:g} hosts per router"
+    return f"Small flows {100 * value:.3g}% of bytes"
+
+
+def panels(frame):
+    """(title, rows) for each combination of the settings other than SETTING, so that each
+    plot shows one setting on its x-axis.  With one setting, a single panel titled None."""
+    outer = SETTINGS[:-1]
+    if not outer:
+        yield None, frame
+        return
+    for values, rows in frame.groupby(outer):
+        values = values if isinstance(values, tuple) else (values,)
+        yield ", ".join(setting_name(v, s) for s, v in zip(outer, values)), rows
 
 
 def label_setting_axis(axis):
@@ -96,9 +117,23 @@ class Run:
         return int(self.options.get("hostsPerRouter", 1))
 
     @property
+    def share(self):
+        """f, the small flows' share of the bytes offered, for the two-size workload.  It
+        is the share the bypass moves, so it is what the models in
+        docs/bypass-modelling.tex call f.  NaN for a flow-size CDF."""
+        if "flowSizeCdf" in self.options:
+            return float("nan")
+        # The simulator's defaults, for runs that don't set them.
+        small = float(self.options.get("smallBytes", 10_000))
+        large = float(self.options.get("largeBytes", 1_000_000))
+        fraction = float(self.options.get("smallFraction", 0.9))
+        return round(fraction * small / (fraction * small + (1 - fraction) * large), 4)
+
+    @property
     def setting(self):
-        """This run's value of SETTING."""
-        return getattr(self, SETTING)
+        """This run's values of SETTINGS: one value, or a tuple when there are several."""
+        values = tuple(getattr(self, s) for s in SETTINGS)
+        return values[0] if len(values) == 1 else values
 
     @property
     def seed(self):
@@ -156,6 +191,28 @@ def load_runs(experiment):
     return sorted(runs, key=lambda r: (r.setting, r.seed, MODES.index(r.bypass)))
 
 
+# The flow-level check of the bypass models (test/bypass-model), in the same batch.
+MODEL_EXPERIMENT = "05-bypass-model"
+
+
+def load_model_checks():
+    """The finished runs of MODEL_EXPERIMENT in this batch, as two tables tagged with each
+    run's nodes, degree and seed: oversubscription per permutation, bypass mode and share,
+    and each pair's busiest links under ECMP.  Matching 0 of a seed is the permutation that
+    06-permutation simulates with that seed and network size."""
+    oversubscription, pairs = [], []
+    for path in sorted((RESULTS / MODEL_EXPERIMENT).glob("*")):
+        if path.suffix in (".partial", ".failed") or not (path / "summary.txt").is_file():
+            continue
+        options = dict(line.lstrip("-").split("=", 1) for line in (path / "args.txt").read_text().split())
+        tags = {"nodes": int(options["nodes"]), "degree": int(options["degree"]), "seed": int(options["seed"])}
+        oversubscription.append(pd.read_csv(path / "oversubscription.csv").assign(**tags))
+        pairs.append(pd.read_csv(path / "pairs.csv").assign(**tags))
+    if not oversubscription:
+        return pd.DataFrame(), pd.DataFrame()
+    return pd.concat(oversubscription, ignore_index=True), pd.concat(pairs, ignore_index=True)
+
+
 def runs_table(runs):
     """One row per run, for checking that the runs are healthy."""
     rows = []
@@ -167,6 +224,7 @@ def runs_table(runs):
                 "bypass": run.bypass,
                 "load": run.load,
                 "hosts": run.hosts,
+                "share": run.share,
                 "seed": run.seed,
                 "flows": run.summary["flows"],
                 "unfinished": run.summary["flows"] - run.summary["completed"],
@@ -198,7 +256,8 @@ def load_flows(runs, trim=TRIM_FRACTION):
         )
         flows["goodput_gbps"] = flows["bytes"] * 8 / (flows["fct_us"] * 1e3)
         flows["timeout"] = _timeouts(flows, run.summary["min_rto_us"])
-        flows["load"], flows["hosts"], flows["seed"], flows["bypass"] = run.load, run.hosts, run.seed, run.bypass
+        flows["load"], flows["hosts"], flows["share"] = run.load, run.hosts, run.share
+        flows["seed"], flows["bypass"] = run.seed, run.bypass
         frames.append(flows)
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
@@ -248,7 +307,7 @@ def seed_change_table(flows):
     """How consistently each bypass mode changes small flows, seed by seed: each seed's
     bypass run against the baseline run with the same flows.  Timeout changes are in
     percentage points, since a baseline can have none; FCT changes are in percent."""
-    per_seed = timeout_table(flows, ["class", SETTING, "seed", "bypass"])
+    per_seed = timeout_table(flows, ["class", *SETTINGS, "seed", "bypass"])
     baseline = per_seed.xs("none", level="bypass")
     rows = []
     for mode in [m for m in MODES if m != "none" and m in per_seed.index.get_level_values("bypass")]:
@@ -261,7 +320,7 @@ def seed_change_table(flows):
                 "clean_p99_pct": 100 * (other["clean_p99"] / baseline["clean_p99"] - 1),
             }
         )
-        grouped = change.groupby(["class", SETTING])
+        grouped = change.groupby(["class", *SETTINGS])
         table = pd.DataFrame(
             {
                 "seeds": grouped.size(),
@@ -283,8 +342,8 @@ def mean_hops_table(runs):
     """Mean fabric hops of delivered packets, including ACKs, by class, mode and setting."""
     paths = path_table(runs)
     paths["weighted"] = paths["hops"] * paths["fraction"]
-    per_run = paths.groupby(["class", "bypass", SETTING, "seed"])["weighted"].sum()
-    return per_run.groupby(["class", "bypass", SETTING]).mean().unstack(SETTING)
+    per_run = paths.groupby(["class", "bypass", *SETTINGS, "seed"])["weighted"].sum()
+    return per_run.groupby(["class", "bypass", *SETTINGS]).mean().unstack(SETTINGS)
 
 
 def goodput_table(flows, by):
@@ -350,7 +409,8 @@ def load_links(runs):
         capacity_bytes = run.summary["link_gbps"] * 1e9 / 8 * last_start_ns * 1e-9
         links["utilization"] = links["sent_bytes_during_arrivals"] / capacity_bytes
         links["filled"] = links["max_queue_packets"] >= run.summary["fabric_queue"]
-        links["load"], links["hosts"], links["seed"], links["bypass"] = run.load, run.hosts, run.seed, run.bypass
+        links["load"], links["hosts"], links["share"] = run.load, run.hosts, run.share
+        links["seed"], links["bypass"] = run.seed, run.bypass
         frames.append(links)
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
@@ -371,7 +431,7 @@ def link_changes(links):
     """Each bypass run's links paired with the same link in the baseline run at the same
     setting and seed.  The topology depends only on the seed, so a link is the same link in
     every mode."""
-    keys = [SETTING, "seed", "from", "to"]
+    keys = [*SETTINGS, "seed", "from", "to"]
     columns = ["utilization", "filled", "sent_small_bytes", "max_queue_packets"]
     baseline = links[links["bypass"] == "none"][keys + columns]
     paired = links[links["bypass"] != "none"][keys + ["bypass"] + columns].merge(
@@ -423,7 +483,7 @@ def fan_in_table(links, by):
 def path_table(runs):
     """Share of delivered packets at each fabric hop count."""
     rows = [
-        {"bypass": run.bypass, "load": run.load, "hosts": run.hosts, "seed": run.seed, "class": name, "hops": hops, "fraction": fraction}
+        {"bypass": run.bypass, "load": run.load, "hosts": run.hosts, "share": run.share, "seed": run.seed, "class": name, "hops": hops, "fraction": fraction}
         for run in runs
         for name, lengths in run.summary["path_lengths"].items()
         for hops, fraction in lengths.items()
@@ -479,29 +539,35 @@ def tail_curve(values):
 
 def plot_metric_by_mode(flows, metric, ylabel, table=fct_table, classes=CLASSES):
     """A metric from table against the setting, one line per bypass mode and one panel per flow
-    class.  Lines show the mean across seeds, and bars show the lowest and highest seed."""
-    per_seed = table(flows, ["class", "bypass", SETTING, "seed"])[metric].reset_index()
-    figure, axes = plt.subplots(1, len(classes), figsize=(3.7 * len(classes), 3.4), sharex=True)
-    for axis, flow_class in zip(np.atleast_1d(axes), classes):
-        for mode in MODES:
-            data = per_seed[(per_seed["class"] == flow_class) & (per_seed["bypass"] == mode)]
-            if data.empty:
-                continue
-            spread = data.groupby(SETTING)[metric].agg(["mean", "min", "max"])
-            axis.errorbar(
-                spread.index,
-                spread["mean"],
-                yerr=[spread["mean"] - spread["min"], spread["max"] - spread["mean"]],
-                color=MODE_COLORS[mode],
-                marker=MODE_MARKERS[mode],
-                label=MODE_NAMES[mode],
-                capsize=3,
-            )
-        axis.set_title(CLASS_NAMES[flow_class])
-        label_setting_axis(axis)
-        axis.set_ylim(bottom=0)
-    axes = np.atleast_1d(axes)
-    axes[0].set_ylabel(ylabel)
-    axes[0].legend()
-    figure.tight_layout()
-    return figure
+    class, in one figure per panel (see panels).  Lines show the mean across seeds, and bars
+    show the lowest and highest seed."""
+    per_seed = table(flows, ["class", "bypass", *SETTINGS, "seed"])[metric].reset_index()
+    figures = []
+    for title, rows in panels(per_seed):
+        figure, axes = plt.subplots(1, len(classes), figsize=(3.7 * len(classes), 3.4), sharex=True)
+        for axis, flow_class in zip(np.atleast_1d(axes), classes):
+            for mode in MODES:
+                data = rows[(rows["class"] == flow_class) & (rows["bypass"] == mode)]
+                if data.empty:
+                    continue
+                spread = data.groupby(SETTING)[metric].agg(["mean", "min", "max"])
+                axis.errorbar(
+                    spread.index,
+                    spread["mean"],
+                    yerr=[spread["mean"] - spread["min"], spread["max"] - spread["mean"]],
+                    color=MODE_COLORS[mode],
+                    marker=MODE_MARKERS[mode],
+                    label=MODE_NAMES[mode],
+                    capsize=3,
+                )
+            axis.set_title(CLASS_NAMES[flow_class])
+            label_setting_axis(axis)
+            axis.set_ylim(bottom=0)
+        axes = np.atleast_1d(axes)
+        axes[0].set_ylabel(ylabel)
+        axes[0].legend()
+        if title:
+            figure.suptitle(title)
+        figure.tight_layout()
+        figures.append(figure)
+    return figures

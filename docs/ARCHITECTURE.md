@@ -27,7 +27,7 @@ flowchart TD
 - **TCP bypass (`src/tcp-bypass/`):** the same experiment, except that small flows can skip the spray step. It adds only that routing decision, so flows, TCP, and measurements stay the same as the baseline.
 - **Tests (`test/`):** check the layers from outside. The verifier compares the core with the paper, without ns-3, and other tests check the programs' behavior.
 - **Experiments (`experiments/`):** each script fixes the settings for one experiment, runs its program, and writes to `experiments/results/<machine>/<batch>/<script name>/`.
-- **Analysis (`experiments/analysis/`):** notebooks that read one batch of `experiments/results/`: one for the baseline, and one comparing it with the bypass.
+- **Analysis (`experiments/analysis/`):** notebooks that read one batch of `experiments/results/`: one for the baseline, one comparing it with the bypass, and one comparing the flow-level model check with the permutation sweep.
 
 ## Extending the experiment
 

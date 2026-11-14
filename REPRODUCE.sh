@@ -47,13 +47,18 @@ if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then
     python3 -m venv experiments/analysis/.venv
     experiments/analysis/.venv/bin/pip install --quiet -r experiments/analysis/requirements.txt
 fi
-for sweep in 02-small-sweep 03-load-sweep 04-oversubscription; do
-    for notebook in experiments/analysis/*.ipynb; do
-        RESULTS_DIR=$BATCH_DIR SWEEP=$sweep experiments/analysis/.venv/bin/jupyter nbconvert \
-            --to notebook --execute --ExecutePreprocessor.timeout=3600 --output-dir "$BATCH_DIR/analysis" \
-            --output "$sweep-$(basename "$notebook")" "$notebook"
-    done
+# run_notebook <sweep> <notebook>: executes a notebook on one sweep of this batch.
+run_notebook() {
+    RESULTS_DIR=$BATCH_DIR SWEEP=$1 experiments/analysis/.venv/bin/jupyter nbconvert \
+        --to notebook --execute --ExecutePreprocessor.timeout=3600 --output-dir "$BATCH_DIR/analysis" \
+        --output "$1-$(basename "$2")" "$2"
+}
+for sweep in 02-small-sweep 03-load-sweep 04-oversubscription 06-permutation; do
+    run_notebook "$sweep" experiments/analysis/01-baseline.ipynb
+    run_notebook "$sweep" experiments/analysis/02-bypass-comparison.ipynb
 done
+# Compares 06-permutation with the flow-level check in 05-bypass-model.
+run_notebook 06-permutation experiments/analysis/03-model-check.ipynb
 
 step "Done"
 echo "Results and the executed notebooks are in ${BATCH_DIR#"$ROOT/"}/."
