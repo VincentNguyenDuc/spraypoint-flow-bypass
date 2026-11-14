@@ -114,6 +114,13 @@ and matched seeds and flows. They report exploratory crossover candidates and
 flag incomplete coverage; they do not apply the 10 KB timeout heuristic to CDF
 or larger flows. Confidence intervals remain a separate TODO.
 
+For paired seed/topology-cluster p99 intervals, use
+[`experiments/analysis/bootstrap.py`](experiments/analysis/bootstrap.py) on a stable
+`h2-runs.csv` copy or selected completed runs, writing to a separate new directory.
+[STATISTICS.md](experiments/analysis/STATISTICS.md) defines the mean-run and pooled
+estimands, pairing checks, censoring and few-seed limitations. The tool does not
+modify the running batch or imply that three seeds establish a crossover.
+
 To run everything including the original small sweep and analysis notebooks, use
 `RUN_H2=1 JOBS=8 MEMORY_BUDGET_GB=12 ./REPRODUCE.sh` (choose JOBS for available memory).
 For one scenario, set a shared `RESULTS_BATCH` for both commands, e.g.:
