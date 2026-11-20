@@ -22,7 +22,9 @@ AddTcpOptions(ns3::CommandLine& cmd, TcpExperimentConfig& config)
     cmd.AddValue("minRtoUs", "Minimum retransmission timeout in microseconds", config.minRtoUs);
     cmd.AddValue("maxSimMs", "Stop after this much simulated time", config.maxSimMs);
     cmd.AddValue("spanMs", "Generate flows for this much simulated time, or 0", config.spanMs);
-    cmd.AddValue("pattern", "Traffic pattern (uniform)", config.pattern);
+    cmd.AddValue("pattern",
+                 "Traffic pattern: uniform, or permutation (each router to one partner)",
+                 config.pattern);
     cmd.AddValue("flowSizeCdf", "Flow-size CDF file, replacing the two sizes", config.flowSizeCdf);
     cmd.AddValue("smallThreshold",
                  "Flows up to this many bytes are small; default smallBytes",

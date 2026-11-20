@@ -5,15 +5,16 @@
 # - <machine> is RESULTS_MACHINE: "local" unless set, and REMOTE.sh sets "remote".
 #   Runs from different machines are never mixed, since the same seed can give
 #   different flows on different platforms.
-# - <code commit> is the last commit that changed the simulator or the experiment
-#   settings, so commits to the notebooks or docs keep using the same batch.  With
-#   uncommitted changes to those, it ends in "-dirty".
+# - <code commit> is the last commit that changed the simulator, the flow-level model
+#   check (test/bypass-model and the solver it shares with the verifier), or the
+#   experiment settings, so commits to the notebooks or docs keep using the same
+#   batch.  With uncommitted changes to those, it ends in "-dirty".
 # - Runs continue the newest batch for the same code on this machine, so an interrupted
 #   experiment picks up where it stopped.  Set NEW_BATCH=1 to start a new batch
 #   anyway, or RESULTS_BATCH=<batch> to use a given one.  Uncommitted code always
 #   starts a new batch, since the name can't tell two versions of it apart.
 
-CODE_PATHS=(src cmake CMakeLists.txt 'experiments/[0-9]*.sh')
+CODE_PATHS=(src cmake CMakeLists.txt 'experiments/[0-9]*.sh' test/spraypoint-verifier test/bypass-model)
 RESULTS_MACHINE=${RESULTS_MACHINE:-local}
 CODE_COMMIT=$(git -C "$ROOT" log -1 --format=%h -- "${CODE_PATHS[@]}")
 if [ -n "$(git -C "$ROOT" status --porcelain -- "${CODE_PATHS[@]}")" ]; then

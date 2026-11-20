@@ -1,5 +1,5 @@
 # The Spraypoint core, shared by the tests and the TCP experiment.  It needs no ns-3.
-add_library(spraypoint STATIC spraypoint/spraypoint.cc spraypoint/max-flow.cc)
+add_library(spraypoint STATIC spraypoint/spraypoint.cc spraypoint/max-flow.cc spraypoint/matching.cc)
 target_include_directories(spraypoint PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(spraypoint PRIVATE project_warnings)
 

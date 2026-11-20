@@ -1,0 +1,343 @@
+\section{Model derivations}
+\label{app:derivations}
+
+This appendix derives the models of \secref{sec:models} step by step, for the paper's default fabric ($n = 1000$, $d = 64$, $p = 4$, $h = 2$, so one waypoint ring, $\ell = 1$, and $\lambda = p^{\ell} d^2/n = 16.4$). Steps 1--3 explain the RNG paper's own models of Spraypoint; Steps 4--7 extend them to the bypass.
+
+\subsection{Step 1: How long is a Spraypoint path? (paper Model 7.2)}
+
+A Spraypoint path averages 3.61 hops, and about two thirds of paths take 4 hops.
+
+\textbf{Idea.} The first hop (spray) lands on a random neighbor $v$ of $s$. After that, the path walks inward one ring per hop, so the hop count depends only on which ring $v$ is in.
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+$v$ lands in & Path & Hops \\
+\midrule
+$t$ itself & $s \to t$ & 1 \\
+WP0 & $s \to v \to t$ & 2 \\
+WP1 & $s \to v \to \text{WP0} \to t$ & 3 \\
+IR & $s \to v \to \text{WP1} \to \text{WP0} \to t$ & 4 \\
+OR & one more & 5 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Calculation.} On a random graph, $v$ is close to a uniformly random router, so the chance $v$ is in a ring is that ring's size divided by $n$.
+\begin{itemize}
+  \item 1 hop: $P = 1/n = 0.1\%$.
+  \item 2 hops: $P = d/n = 6.4\%$.
+  \item 3 hops: $P = p d / n = 25.6\%$.
+  \item 5 hops: $v$ is in OR only if none of its 64 neighbors is in WP1. That is $(1 - pd/n)^d \approx e^{-\lambda}$, with $\lambda = p d^2 / n = 16.4$, so $P \approx 7 \times 10^{-8}$.
+  \item 4 hops: everything else, $1 - 0.001 - 0.064 - 0.256 - 0 = 67.9\%$.
+\end{itemize}
+
+The paper's general formula (Theorem E.4) for $\ell$ waypoint rings, where each ring is $p$ times larger than the one inside it:
+\[
+P(L = i) \approx
+\begin{cases}
+  1/n & i = 1 \\
+  p^{\,i-2}\, d/n & 2 \le i \le \ell + 2 \\
+  \text{the rest} & i = \ell + 3 \\
+  e^{-p^{\ell} d^2 / n} & i = \ell + 4
+\end{cases}
+\]
+
+\textbf{Mean.} $1(0.001) + 2(0.064) + 3(0.256) + 4(0.679) = \mathbf{3.61}$ \textbf{hops}. The maximum is $\ell + 4 = 5$ hops.
+
+\textbf{What to remember.} $h$ does not appear: it changes how many paths there are, not how long they are. Most paths are 4 hops because the spray throws you to a random router, and most routers sit in the big ring IR. The shortest path for most pairs is only 2 hops (Step 4), and that gap is what the bypass goes after. The paper also proves that the rings come out the sizes claimed above, with high probability (Theorems E.1--E.3); we take that as given.
+
+\subsection{Step 2: How many lanes does a pair get? (paper Model 7.1)}
+
+A pair gets about 55 of a possible 64 edge-disjoint paths.
+
+\textbf{What is counted.} A lane is an edge-disjoint path: two lanes never share a link. With $k$ lanes, $s$ can send $k$ links' worth of traffic to $t$ when no one else is sending. The maximum is $d = 64$, because $s$ has 64 links out and $t$ has 64 links in. Formally, lanes are the $s$--$t$ min cut of the graph made of all Spraypoint paths from $s$ to $t$.
+
+\textbf{Where lanes get lost.} Every path into $t$ ends on one of $t$'s 64 incoming links, one per WP0 router. Call these $t$'s 64 \emph{doors}. Two paths that end at the same door share its last link, so they count as one lane.
+
+\textbf{Setting up the count.}
+\begin{enumerate}
+  \item \textbf{Spray.} $s$ has 64 links, so 64 branches. Each branch is one link out of $s$, so it carries at most one lane.
+  \item \textbf{One fan-out.} Each branch's router (in IR) keeps $h = 2$ next hops into WP1. Each WP1 router was picked by one WP0 router when the rings were built, and the model follows only that parent. So each branch reaches $h$ random doors.
+  \item \textbf{Matching.} Each branch carries one lane and each door takes one lane. So lanes are the most branches you can pair one-to-one with a door they reach: a maximum matching in a random bipartite graph with 64 branches, 64 doors, and $h$ random edges per branch (Claim F.4, Definition F.5).
+\end{enumerate}
+
+\textbf{Balls into bins (Lemma F.7).} That is $64 h$ balls thrown into 64 bins. A given door is missed by every ball with probability $(1 - 1/d)^{d h} \approx e^{-h}$, and a door nobody reaches can't be matched, so
+\[
+\text{lanes} \le d\,(1 - e^{-h}).
+\]
+
+\begin{center}
+\begin{tabular}{@{}crr@{}}
+\toprule
+$h$ & Doors reached & Lanes (of 64) \\
+\midrule
+1 & 63\% & about 40 \\
+2 & 86.5\% & about 55 \\
+4 & 98\% & about 63 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This is an upper bound on the matching. The exact limit (Frieze--Mellsted) is $0.838\,d \approx 54$ at $h = 2$, very close. For $h = 1$ the bound is exact.
+
+\textbf{When $s$ is a neighbor of $t$.} Then $s$ is itself one of $t$'s doors. The $p = 4$ routers that $s$ picked for WP1 send traffic back through $s$, so those spray hops are wasted, and only $d - p$ branches play the game:
+\[
+\text{lanes} \approx \min\!\Big[\, d - p,\ d \big(1 - e^{-(1 - p/d) h}\big) \Big] \approx 54.
+\]
+
+\textbf{Why the real number is higher.} The model ignores that WP1 routers also keep $h$ parents into WP0, a second fan-out. The paper's simulation (Fig.~12) shows over 60 lanes for half the pairs.
+
+\textbf{What to remember.} Lanes grow like $1 - e^{-h}$. Going from $h = 1$ to $h = 2$ helps a lot; past that, gains are small. A larger $h$ costs ECMP table memory, which is why the paper sizes $h$ by memory (§7.4).
+
+\subsection{Step 3: How much can every pair send at once? (paper Model 7.3)}
+
+Under the worst traffic pattern, every pair can get about 19.6 of its 64 links' worth at the same time. That is an oversubscription of about 3.27:1; the paper's exact LP gives 3.25.
+
+\textbf{What oversubscription means.} If every router sends at full speed, links get shared and each pair gets less. Let $x$ be the largest rate, in links' worth, that every pair can get simultaneously. Then oversubscription is $d / x$: $x = 64$ would be perfect (1:1), and $x = 16$ would be 4:1.
+
+\textbf{The traffic pattern.} The worst case is a permutation: every router sends to exactly one partner and receives from exactly one~\cite{namyar}. The paper analyses a random permutation and argues the worst case is close to the average.
+
+\textbf{Gut check (Lemma G.2).} The fabric has $n d$ links. If paths average $L$ hops, each byte uses $L$ links, so at most $n d / L$ bytes can flow. Each pair then gets at most $d / L$, and oversubscription is at least about $L$. Spraypoint's $L$ is 3.61, so we expect something around 3 to 4.
+
+\textbf{Method: fill the shortest paths first.} An LP solver would put as much flow as possible on short paths, because they use fewer links per byte. The paper copies that greedily: first fill 2-hop paths, then 3-hop paths with what is left, then 4-hop, then 5-hop. Let $\mu_i d$ be the traffic $s$ can send to $t$ on $i$-hop paths, in links' worth. Then $x = (\mu_2 + \mu_3 + \mu_4 + \mu_5)\, d$, so
+\[
+\text{oversubscription} = \frac{d}{x} = \frac{1}{\mu_2 + \mu_3 + \mu_4 + \mu_5}.
+\]
+
+Each $\mu$ is ``how many paths of that length'' times ``how much of a link each path gets after sharing''. Two rules of thumb (the paper calls them principles) drive the sharing:
+\begin{itemize}
+  \item \textbf{Random deletion.} A link already used by an earlier, shorter round counts as gone, with probability equal to how much of the fabric that round used.
+  \item \textbf{Unique position.} On a random graph, a link sits in a given position (first, middle, last) of at most a few paths of a given length.
+\end{itemize}
+
+\subsubsection*{$\mu_2$: 2-hop paths ($s \to \text{WP0} \to t$)}
+
+\begin{itemize}
+  \item \textbf{Paths:} a fraction $d/n$ of $s$'s neighbors are also $t$'s neighbors, so $s$ has $d^2/n \approx 4.1$ two-hop paths to $t$.
+  \item \textbf{Sharing:} a given link is on some 2-hop path with probability about $2d/n \approx 13\%$, so two of them almost never collide. Each path carries a full link.
+  \item $\mu_2 = (d^2/n) / d = d/n = \mathbf{0.064}$.
+\end{itemize}
+
+\subsubsection*{$\mu_3$: 3-hop paths ($s \to \text{WP1} \to \text{WP0} \to t$)}
+
+The number of usable paths, as a fraction $\varphi_3$ of $s$'s 64 links:
+\[
+\varphi_3 = \min(p \mu_2,\, 1 - \mu_2) \cdot (1 - \mu_2) \cdot \big(1 - (4 \mu_2)^h\big)
+\]
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l L r@{}}
+\toprule
+Factor & Meaning & Value \\
+\midrule
+$\min(p\mu_2, 1 - \mu_2)$ & share of $s$'s neighbors that are in WP1 & 0.256 \\
+$1 - \mu_2$ & the link $s \to v$ is not already the last link of some 2-hop flow & 0.936 \\
+$1 - (4\mu_2)^h$ & $v$ still has a working route to $t$: each of its $h$ routes has 2 links, each gone with probability $2\mu_2$, so a route dies with about $4\mu_2 = 0.256$, and all $h$ die with $0.256^2$ & 0.934 \\
+$\varphi_3$ & product & \textbf{0.224} (about 14 paths) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Sharing: each of the path's 3 links may also carry up to 2 other pairs' 3-hop paths, each there with probability $\varphi_3$. Let $Y$ be the extra users on the busiest of the 3 links (Claim G.4); the path gets $1/(Y+1)$ of a link.
+
+\begin{center}
+\begin{tabular}{@{}clc@{}}
+\toprule
+$Y$ & Probability & Share of the link \\
+\midrule
+0 & $(1 - \varphi_3)^6 \approx 0.218$ & 1 \\
+1 & $(1 - \varphi_3^2)^3 - (1 - \varphi_3)^6 \approx 0.639$ & 1/2 \\
+2 & $1 - (1 - \varphi_3^2)^3 \approx 0.143$ & 1/3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+So $\kappa_3 = E[1/(Y+1)] = 0.218 + 0.639/2 + 0.143/3 \approx \mathbf{0.585}$, and $\mu_3 = \varphi_3 \kappa_3 = 0.224 \times 0.585 \approx \mathbf{0.131}$.
+
+\subsubsection*{$\mu_4$: 4-hop paths ($s \to \text{IR} \to \text{WP1} \to \text{WP0} \to t$)}
+
+\[
+\mu_4 = \sigma_4 \cdot \beta \cdot (1 - \mu_2 - 2\mu_3) / 4
+\]
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l L r@{}}
+\toprule
+Factor & Meaning & Value \\
+\midrule
+$\sigma_4 = 1 - (p+1)d/n - e^{-\lambda}$ & share of $s$'s neighbors in IR & 0.680 \\
+$\beta = 1 - \big[1 - (1 - 2\mu_2)(1 - (4\mu_2)^h)\big]^h$ & $v$ still has a route in ($h$ WP1 parents, each with $h$ routes) & 0.966 \\
+$1 - \mu_2 - 2\mu_3$ & the link $s \to v$ is not already used by 2- or 3-hop flows & 0.674 \\
+$\div 4$ & assume the worst sharing: 4 users per link & \\
+$\mu_4$ & product & \textbf{0.111} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsubsection*{$\mu_5$: 5-hop paths}
+
+Only routers in OR lead to 5-hop paths, and $\sigma_5 = e^{-\lambda} \approx 0$, so $\mu_5 \approx 0$. The printed formula in Appendix G writes $\sigma_4$ here; that looks like a typo for $\sigma_5$, since with $\sigma_4$ the term would not be near zero. Our implementation of the model uses $\sigma_5$.
+
+\subsubsection*{Total}
+
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Term & Value & Links' worth ($\times 64$) \\
+\midrule
+$\mu_2$ & 0.064 & 4.1 \\
+$\mu_3$ & 0.131 & 8.4 \\
+$\mu_4$ & 0.111 & 7.1 \\
+$\mu_5$ & $\approx 0$ & 0 \\
+\midrule
+Sum & \textbf{0.306} & \textbf{19.6} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Oversubscription is $1 / 0.306 \approx \mathbf{3.27}$, against 3.25 from the paper's exact LP (§9.1). The $\mu$'s don't add up to 1: the missing 69\% is capacity $s$ can't use, because the links on its paths are busy with other pairs. The paper also gives a shortcut for $h = 2$ (footnote 7): $\log_d(n/p) + 2 = \log_{64} 250 + 2 \approx 3.33$.
+
+3.27 is the best possible split, as an LP would choose; Step 7 models the bypass under ECMP instead.
+
+\subsection{Step 4: How long is a bypass path?}
+
+A bypass path averages 1.95 hops and is never more than 3, compared with 3.61 hops for Spraypoint. That saves about 1.7 hops per small flow.
+
+\textbf{Idea.} The bypass uses the true shortest path, so its length is just the graph distance between $s$ and $t$. On a random graph, the number of routers within $k$ hops of $s$ grows like $d^k$. Once $d^k$ reaches $n$, almost everyone is reached.
+
+\textbf{Calculation.} Use the same random-graph assumption as the paper.
+\begin{itemize}
+  \item \textbf{1 hop:} $t$ is one of $s$'s 64 neighbors. $P = d/n = 6.4\%$.
+  \item \textbf{3 hops:} $s$ and $t$ share no neighbor. Each of $s$'s 64 neighbors misses $t$'s neighborhood with probability $1 - d/n$, so all of them miss with $(1 - d/n)^d \approx e^{-d^2/n} = e^{-4.1} \approx 1.45\%$. Times 0.936 for ``not neighbors'' gives $1.4\%$.
+  \item \textbf{2 hops:} everything else, $1 - 0.064 - 0.014 = 92.2\%$.
+  \item \textbf{4 or more hops:} $\approx 0$. Between $s$ and $t$ there are about $d^3/n \approx 260$ three-hop paths, so a pair with none is essentially impossible.
+\end{itemize}
+
+In general, $P(L_{\text{byp}} \le k) \approx 1 - e^{-d^k / n}$.
+
+\textbf{Mean.} $1(0.064) + 2(0.922) + 3(0.014) = \mathbf{1.95}$ \textbf{hops}.
+
+\begin{center}
+\begin{tabular}{@{}crr@{}}
+\toprule
+Hops & Spraypoint (Step 1) & Bypass \\
+\midrule
+1 & 0.1\% & 6.4\% \\
+2 & 6.4\% & 92.2\% \\
+3 & 25.6\% & 1.4\% \\
+4 & 67.9\% & $\approx 0$ \\
+5 & $\approx 0$ & 0 \\
+\midrule
+Mean & 3.61 & 1.95 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Savings.} The bypass saves $3.61 - 1.95 \approx 1.7$ hops per small flow on average. Neighbors save the most, about 2.6 hops each, since a Spraypoint path between neighbors is still about 3.6 hops; but they are only 6.4\% of pairs, which is why the bypass covers every pair (hypothesis H3).
+
+\subsection{Step 5: How many lanes does the bypass get?}
+
+The bypass has far fewer lanes than Spraypoint's 55. Call the number of edge-disjoint shortest paths $c$: $c = 1$ for neighbors, about 4 for a typical 2-hop pair, and about 60 for 3-hop pairs.
+
+\textbf{Idea.} The bypass spreads a pair's small flows over all of its shortest paths with ECMP. So the bypass capacity of a pair, in links' worth, is $c$.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l r L L@{}}
+\toprule
+Pair type & Share of pairs & Shortest paths & $c$ \\
+\midrule
+neighbors & 6.4\% & the direct link & 1 \\
+2 hops & 92.2\% & $s \to$ common neighbor $\to t$ & about $d^2/n = 4.1$ on average \\
+3 hops & 1.4\% & about $d^3/n \approx 260$ paths & about 60 (capped near $d$) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{$c$ varies a lot for 2-hop pairs.} Each of $s$'s 64 neighbors is also $t$'s neighbor with probability about $d/n$, so $c$ follows roughly a Poisson distribution with mean $d^2/n = 4.1$, given $c \ge 1$:
+
+\begin{center}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+$c$ & 1 & 2 & 3 & 4 & 5 & 6+ \\
+\midrule
+Share of 2-hop pairs & 6.9\% & 14.2\% & 19.4\% & 19.8\% & 16.3\% & 23.4\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+So about 7\% of 2-hop pairs, roughly 6\% of all pairs, have only one shortest path, just like neighbors. These ``unlucky'' pairs decide the network-wide limit in Step 6.
+
+\textbf{Widened variant.} If neighbors may use any path of length 2 or less, they get the direct link plus their common neighbors: $c \approx 1 + 4.1 \approx 5$.
+
+\textbf{Effect on Spraypoint's lanes.} The bypass is a separate lane on the same wires. It doesn't change Spraypoint's rings or tables, so Steps 1 and 2 still hold for large flows. For one small flow, $c$ doesn't matter: it needs far less than one link. $c$ matters only when many small flows load the same pair at once, which is the next step.
+
+\subsection{Step 6: Oversubscription with the bypass, best split}
+
+Under the paper's ideal (LP) routing, the bypass costs nothing until $f$ reaches about 5\%. Beyond that, the pairs with a single shortest path become the bottleneck, and oversubscription grows as $f d$.
+
+\textbf{Set-up.} Each pair sends $x$ in total. A share $f$ of it (small flows) is forced onto the pair's $c$ shortest paths. The rest, $(1 - f) x$, goes through Spraypoint as in Step 3. Then recompute the $\mu$'s.
+
+\textbf{Key observation.} For a 2-hop pair, the shortest paths $s \to$ common neighbor $\to t$ are exactly the $\mu_2$ paths from Step 3. The bypass adds no new paths; it just claims part of the $\mu_2$ capacity, $\mu_2 d = c \approx 4.1$ links, before Spraypoint's large flows do.
+
+\textbf{Worked example: a typical 2-hop pair at $f = 5\%$.}
+\begin{enumerate}
+  \item Without the bypass, $x = 0.306 \times 64 = 19.6$ links.
+  \item The bypass needs $f x = 0.05 \times 19.6 = 0.98$ links. That fits in $c = 4.1$.
+  \item $\mu_2 = 0.064$ splits into $0.98/64 = 0.015$ for the bypass and $0.049$ for Spraypoint.
+  \item $\mu_3 = 0.131$ and $\mu_4 = 0.111$ are unchanged: the same links are used in the same order.
+  \item The sum is still 0.306, so oversubscription is still 3.27.
+\end{enumerate}
+As long as the bypass fits inside the shortest paths, the $\mu$'s are only relabelled.
+
+\textbf{When it no longer fits.} The bypass can't use other paths, so a pair needs $f x \le c$, which caps it at $x \le c/f$. Combining:
+\[
+x = \min\!\Big( d \sumu,\ \frac{c}{f} \Big),
+\qquad
+\text{oversubscription} = \max\!\Big( \frac{1}{\sumu},\ \frac{f d}{c} \Big),
+\qquad
+\text{free while } f < \frac{c}{d \sumu} = \frac{c}{19.6}.
+\]
+
+\begin{center}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Pair type & $c$ & Free until & Oversubscription, $f = 10\%$ & $f = 20\%$ \\
+\midrule
+neighbors & 1 & $f \approx 5.1\%$ & 6.4 & 12.8 \\
+2-hop, typical & 4.1 & $f \approx 21\%$ & 3.27 & 3.27 \\
+2-hop, unlucky ($c = 1$) & 1 & $f \approx 5.1\%$ & 6.4 & 12.8 \\
+3-hop & about 60 & never binds & 3.27 & 3.27 \\
+neighbors, widened to $\le 2$ hops & about 5 & $f \approx 26\%$ & 3.27 & 3.27 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Network-wide number.} Oversubscription asks that every pair get $x$ at the same time, so the weakest pair sets it. A random permutation contains about 64 neighboring pairs and about 60 unlucky 2-hop pairs, all with $c = 1$. So the network knee is $f \approx 5\%$, even with ideal routing. Above it, oversubscription is about $64 f$: 6.4 at 10\%, 12.8 at 20\%. 3-hop pairs have $c \approx 60$; even at $f = 100\%$ they need only 19.6 links, so they never bind.
+
+\textbf{When single-path pairs share a link.} The model looks at each pair on its own. The one shortest path of two unlucky pairs can run over the same link, which then carries $2 f d$. In those permutations the knee halves, to about $3.27 / (2 \cdot 64) \approx 2.6\%$.
+
+\subsection{Step 7: Oversubscription with the bypass, plain ECMP}
+
+With plain ECMP the bypass has a cost at every $f$, not just past 5\%.
+
+\textbf{Why Step 6 is optimistic.} Step 6 assumes an LP that moves large flows out of the bypass's way. Real switches use ECMP hashing: each router splits traffic evenly over its next hops, whatever the load. Two things follow.
+\begin{itemize}
+  \item Spraypoint's own load is uneven, so some links are much hotter than average.
+  \item Bypass traffic can't be ``relabelled'' into room that the LP would have cleared. It simply adds on top of whatever Spraypoint already puts on those links.
+\end{itemize}
+
+\textbf{Simple ECMP model.} Treat the hottest links as carrying Spraypoint load $O_{\text{ecmp}}/d$ per unit of demand, and add the bypass load of a pair with $c$ paths:
+\[
+\text{oversubscription}_{\text{ECMP}}(f) \approx O_{\text{ecmp}} (1 - f) + \frac{f d}{c}.
+\]
+
+\textbf{Numerical check.} \file{bypass-model} computes this on our actual Spraypoint and shortest-path tables, with no packets:
+\begin{enumerate}
+  \item Build the 64-regular topology on 1000 routers and Spraypoint's tables, exactly as the ns-3 simulation does.
+  \item Traffic: a random permutation, each router sending its full rate of $d$ links to its partner. The source sprays $1/64$ on each of its links, and every router splits evenly over its next hops toward the destination.
+  \item Bypass: each pair sends a share $f$ on shortest paths instead, split evenly over the next hops one hop closer.
+  \item Oversubscription is the load on the busiest link, in units of its capacity.
+\end{enumerate}
+
+The busiest link with no bypass gives the $O_{\text{ecmp}}$ the simple model uses; the checker then compares the throughput kept at each $f$ with the model, and reports the busiest link that each kind of pair's small bytes cross.

@@ -1,0 +1,15 @@
+\section{Project timeline}
+\label{app:timeline}
+
+The project's questions changed as results came in. This appendix records how, so that each experiment's purpose is clear.
+
+\begin{description}[leftmargin=1.5em,style=nextline]
+  \item[Proposal (October)] H1--H4 and a plan to simulate RNG in ns-3 rather than emulate it in Mininet, following feedback that emulation was more than the question needed.
+  \item[M1: a correct baseline (Oct 28--Nov 8)] The RNG topology generator and Spraypoint tables, then the verifier, which checks them against the paper (\appref{app:validation}). Spraypoint in ns-3 with TCP flows, measuring completion times.
+  \item[M2: the bypass and first results (Nov 6--8)] Both bypass modes as a separate program sharing everything else with the baseline, the analysis notebooks, and the first sweeps: a small 64-router network (\file{02}) and the 256-router load sweep (\file{03}). We also changed how we report the tail: the raw p99 turned out to be mostly a threshold test on the timeout rate, so we report timeouts and the clean p99.
+  \item[Progress-report feedback (Nov 11)] The instructor suggested analytical modelling of how oversubscription changes with the share of small flows, an overall bypass policy, and load-aware bypassing.
+  \item[A busier fabric (Nov 12)] \file{04-oversubscription} tested whether load alone would produce a cost.
+  \item[Models (Nov 13)] We extended the paper's models to the bypass (\secref{sec:models}) and built the flow-level checker (\file{05}) to test them. The models said a cost needs single pairs carrying a lot of small-flow bytes.
+  \item[Worst-case traffic (Nov 13)] \file{06-permutation} added permutation traffic and raised $f$.
+  \item[A larger share under uniform traffic (Nov 13--14)] \file{07-share-sweep} raised $f$ to 30\% under uniform traffic at loads up to 0.7.
+\end{description}

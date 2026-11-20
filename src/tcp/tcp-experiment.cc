@@ -1,6 +1,7 @@
 #include "tcp-experiment.h"
 
 #include "spraypoint/hash.h"
+#include "spraypoint/matching.h"
 
 #include "ns3/applications-module.h"
 #include "ns3/core-module.h"
@@ -93,9 +94,14 @@ TcpExperiment::TcpExperiment(const TcpExperimentConfig& config)
     {
         throw std::runtime_error("set flows or spanMs to limit the workload");
     }
-    if (config.pattern != "uniform")
+    if (config.pattern != "uniform" && config.pattern != "permutation")
     {
-        throw std::runtime_error("unknown pattern " + config.pattern + "; use uniform");
+        throw std::runtime_error("unknown pattern " + config.pattern +
+                                 "; use uniform or permutation");
+    }
+    if (config.pattern == "permutation" && config.nodes < 2)
+    {
+        throw std::runtime_error("the permutation pattern needs at least two routers");
     }
     if (config.linkGbps <= 0 || config.fabricQueuePackets == 0 || config.nicQueuePackets == 0)
     {
@@ -325,6 +331,16 @@ TcpExperiment::GenerateFlows()
     std::uniform_real_distribution<double> uniform(0.0, 1.0);
     std::exponential_distribution<double> gap(arrivalsPerSecond);
 
+    // The permutation pattern sends from each router only to its partner, the same
+    // partner as matching 0 of the flow-level check (test/bypass-model).  The uniform
+    // pattern draws nothing extra, so its flows are unchanged.
+    std::vector<uint32_t> partner;
+    if (m_config.pattern == "permutation")
+    {
+        partner = RandomMatching(m_config.nodes, m_config.seed + 1000);
+    }
+    std::uniform_int_distribution<uint32_t> pickLocalHost(0, m_config.hostsPerRouter - 1);
+
     std::vector<uint32_t> nextPort(hosts, 10000); // by destination host
     double now = 0;
     for (uint32_t index = 0; m_config.flows == 0 || index < m_config.flows; ++index)
@@ -336,10 +352,19 @@ TcpExperiment::GenerateFlows()
         }
         Flow flow;
         flow.sourceHost = pickHost(rng);
-        do
+        if (partner.empty())
         {
-            flow.destinationHost = pickHost(rng);
-        } while (flow.destinationHost == flow.sourceHost);
+            do
+            {
+                flow.destinationHost = pickHost(rng);
+            } while (flow.destinationHost == flow.sourceHost);
+        }
+        else
+        {
+            flow.destinationHost =
+                partner[RouterOfHost(flow.sourceHost)] * m_config.hostsPerRouter +
+                pickLocalHost(rng);
+        }
         const double sizeDraw = uniform(rng);
         if (m_flowSizes)
         {

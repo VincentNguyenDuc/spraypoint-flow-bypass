@@ -1,0 +1,51 @@
+\section{Background}
+\label{sec:background}
+
+\subsection{The RNG fabric}
+
+RNG connects $n$ ToR routers directly to each other, with no spine layer. Each router has $d$ fabric links, wired so that the graph behaves like a uniformly random $d$-regular graph, an \emph{expander}. In such a graph the number of routers within $k$ hops of any router grows like $d^k$, so with $n = 1000$ and $d = 64$ almost every pair is at most two hops apart. The paper's defaults, which we also use for modelling, are $n = 1000$ routers of degree $d = 64$.
+
+\subsection{Spraypoint routing}
+
+Shortest-path routing on a random graph uses only a handful of the 64 links between two routers, so a large flow can't get much bandwidth. Spraypoint spreads each pair's traffic over almost all of them in two phases (\autoref{fig:rings}):
+
+\begin{enumerate}
+  \item \textbf{Spray.} The source router $s$ sends the flow to one of its $d$ neighbors, chosen by hashing (ECMP). This is always one hop, and it ignores the destination.
+  \item \textbf{Point.} For each destination $t$, routers are arranged in rings. WP0 holds $t$'s $d$ neighbors. WP1 holds the $p$ waypoints each WP0 router picks among its own neighbors ($p = 4$, so about $pd = 256$ routers). The inner ring (IR) holds every remaining router that touches WP1, and the outer ring (OR) the rest, which is almost empty at the paper's scale. Each router keeps $h = 2$ next hops in the next ring inward and splits traffic over them with ECMP, so traffic walks inward one ring per hop.
+\end{enumerate}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[scale=0.72, every node/.style={font=\small}]
+  \draw[fill=black!4] (0,0) circle (4.2);
+  \draw[fill=black!8] (0,0) circle (3.0);
+  \draw[fill=black!14] (0,0) circle (1.8);
+  \node[circle, fill=black, text=white, inner sep=1.5pt] (t) at (0,0) {$t$};
+  \node at (0, 1.35) {WP0};
+  \node at (0, 2.45) {WP1};
+  \node at (0, 3.65) {IR};
+  \node[circle, draw, fill=white, inner sep=1.5pt] (s) at (-6.2, -0.6) {$s$};
+  \node[circle, draw, fill=white, inner sep=1pt] (v) at (-3.6, -0.9) {$v$};
+  \node[circle, draw, fill=white, inner sep=1pt] (w1) at (-2.4, -0.3) {};
+  \node[circle, draw, fill=white, inner sep=1pt] (w0) at (-1.2, -0.2) {};
+  \draw[-{Stealth}, thick] (s) -- node[above, font=\scriptsize] {spray} (v);
+  \draw[-{Stealth}, thick] (v) -- (w1);
+  \draw[-{Stealth}, thick] (w1) -- (w0);
+  \draw[-{Stealth}, thick] (w0) -- (t);
+  \node[circle, draw, fill=white, inner sep=1pt] (n) at (-1.0, -1.1) {};
+  \draw[-{Stealth}, thick, dashed, color=green!50!black] (s) to[bend right=25] node[below, font=\scriptsize] {bypass} (n);
+  \draw[-{Stealth}, thick, dashed, color=green!50!black] (n) -- (t);
+  \node[align=left, font=\scriptsize, anchor=west] at (4.8, 1.0) {Spraypoint (solid):\\$s \to v \to$ WP1 $\to$ WP0 $\to t$,\\4 hops};
+  \node[align=left, font=\scriptsize, color=green!50!black, anchor=west] at (4.8, -1.2) {Bypass (dashed):\\shortest path, here\\$s \to$ WP0 $\to t$, 2 hops};
+\end{tikzpicture}
+\caption{Spraypoint's rings around a destination $t$. The spray lands on a random neighbor $v$ of the source $s$, usually in the large inner ring, and the flow then walks inward one ring per hop. The bypass (dashed) takes a shortest path instead.}
+\label{fig:rings}
+\end{figure}
+
+Because most routers sit in the inner ring, most sprayed flows take four hops: the paper's model gives a mean of 3.61 hops and at most 5. In exchange, each pair gets about 55 of a possible 64 edge-disjoint paths, and traffic reaches $t$ through many of its neighbors, which the paper calls high \emph{fan-in}. The full models are in \secref{sec:models} and \appref{app:derivations}.
+
+\subsection{Throughput: oversubscription}
+
+The paper measures throughput by \emph{oversubscription}. Under a given traffic pattern, it is $r$ if every router can send at least $1/r$ of its full rate (its $d$ links' worth) at the same time without overloading any link. The worst pattern is a \emph{permutation}, where every router sends at full rate to exactly one partner~\cite{namyar}. The paper computes $r$ for random permutations with a linear program (LP) that splits each pair's traffic over its Spraypoint paths in the best possible way, and reports $r = 3.25$ at its defaults.
+
+The best split is a bound. Switches split traffic \emph{evenly} over their next hops, by hashing each flow (ECMP), so we model the bypass under both (\secref{sec:models}).

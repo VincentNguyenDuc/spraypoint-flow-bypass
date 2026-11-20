@@ -1,0 +1,13 @@
+\section{Validating our Spraypoint implementation}
+\label{app:validation}
+
+The program \file{spraypoint-verifier} (\file{test/spraypoint-verifier/}) checks our routing tables against §5, §7 and §9 of the paper~\cite{rng}, without ns-3. It checks every destination's rings and next hops against the paper's routing rules, follows every path to detect forwarding loops, computes the exact path-length distribution over all pairs and spray choices, counts edge-disjoint paths by max-flow for 2{,}000 sampled pairs, and solves the paper's oversubscription LP for random permutations. These runs use seed 561 and 10 permutations; the multi-seed oversubscription numbers come from the same solver in \file{bypass-model}.
+
+We ran these checks at the paper's scale ($n = 1000$, $d = 64$, $p = 4$, $h = 2$) and at our simulation's scale ($n = 256$, $d = 16$).
+
+\paragraph{Notes.}
+\begin{itemize}
+  \item \textbf{Edge-disjoint paths.} Our topology is a uniform random regular graph, while the paper's fabric is built with ShuffleBoxes, which may affect path counts.
+  \item \textbf{The model is less exact at small scale}, since the paper's models assume a large network.
+  \item \textbf{Oversubscription is a bracket}, since the Garg--K\"onemann solver is approximate. With the default step size of 0.05 the bracket is about 5\% wide.
+\end{itemize}
