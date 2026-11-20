@@ -55,6 +55,8 @@ for title, rows in common.panels(flows):
     out.figure(figure)
 
 out.heading("Where the tail comes from", 3)
+if caveat := common.timeout_caveat(flows):
+    out.text(caveat)
 out.table("timeouts", common.timeout_table(flows, ["class", *common.SETTINGS]))
 timeouts = common.timeout_table(flows, ["class", *common.SETTINGS, "seed"]).reset_index()
 for title, rows in common.panels(timeouts):

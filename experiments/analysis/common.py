@@ -27,18 +27,22 @@ BYPASS_EXPERIMENT = f"{SWEEP}-bypass"
 # load.  04-oversubscription holds the load at 0.5 and varies the hosts per router,
 # which makes the fabric busier while each host link stays at the same load.
 # 06-permutation and 07-share-sweep vary both the small flows' share of bytes and the
-# load, under permutation and uniform traffic, and 08-workloads varies the workload
-# scenario and the load.
+# load, under permutation and uniform traffic, as do 08-small-fraction and 09-small-size
+# with more or larger small flows.  10-websearch and 11-hadoop vary the small-flow cutoff
+# on a published flow-size distribution, and the load.
 _SWEEP_SETTINGS = {
     "04-oversubscription": ["hosts"],
     "06-permutation": ["share", "load"],
     "07-share-sweep": ["share", "load"],
-    "08-workloads": ["scenario", "load"],
+    "08-small-fraction": ["share", "load"],
+    "09-small-size": ["share", "load"],
+    "10-websearch": ["cutoff", "load"],
+    "11-hadoop": ["cutoff", "load"],
 }
 SETTINGS = _SWEEP_SETTINGS.get(SWEEP, ["load"])
 SETTING = SETTINGS[-1]
 SETTING_LABELS = {"load": "Offered load", "hosts": "Hosts per router", "share": "Small flows' share of bytes",
-                  "scenario": "Workload"}
+                  "cutoff": "Small-flow cutoff"}
 SETTING_LABEL = SETTING_LABELS[SETTING]
 
 
@@ -50,8 +54,8 @@ def setting_name(value, setting=None):
         return f"Load {value:g}"
     if setting == "hosts":
         return f"{value:g} hosts per router"
-    if setting == "scenario":
-        return f"Workload {value}"
+    if setting == "cutoff":
+        return f"Cutoff {value / 1000:g} KB"
     return f"Small flows {100 * value:.3g}% of bytes"
 
 
@@ -124,6 +128,10 @@ MODE_COLORS = {"none": "#2a78d6", "shortest": "#1baf7a"}
 MODE_MARKERS = {"none": "o", "shortest": "^"}
 SMALL_CLASSES = ["small_adjacent", "small_other"]
 
+# The handshake timeout is this many minimum RTOs: see ConnTimeout in
+# src/tcp/tcp-experiment.cc.
+CONN_TIMEOUT_RTOS = 10
+
 
 
 @dataclass
@@ -157,11 +165,18 @@ class Run:
         return round(fraction * small / (fraction * small + (1 - fraction) * large), 4)
 
     @property
+    def cutoff(self):
+        """The largest flow size counted as small, in bytes: smallThreshold, which
+        defaults to the small flow size."""
+        return int(self.options.get("smallThreshold", self.options.get("smallBytes", 10_000)))
+
+    @property
     def scenario(self):
-        """The workload scenario of an 08-workloads run, the start of its name
-        (<scenario>_load-...), or "default" for runs of the default workload."""
+        """A label for the run's condition other than load and seed: the start of its name
+        (such as fraction-0.95 in fraction-0.95_load-0.3_seed-561), or "default" when the
+        name has no other condition."""
         name = self.name.removeprefix(f"{self.bypass}_")
-        return "default" if name.startswith("load-") else name.split("_load-")[0]
+        return name.split("_load-")[0] if "_load-" in name else "default"
 
     @property
     def setting(self):
@@ -261,7 +276,7 @@ def runs_table(runs):
                 "load": run.load,
                 "hosts": run.hosts,
                 "share": run.share,
-                "scenario": run.scenario,
+                "cutoff": run.cutoff,
                 "seed": run.seed,
                 "flows": run.summary["flows"],
                 "unfinished": run.summary["flows"] - run.summary["completed"],
@@ -292,43 +307,47 @@ def load_flows(runs, trim=TRIM_FRACTION):
             "large",
         )
         flows["goodput_gbps"] = flows["bytes"] * 8 / (flows["fct_us"] * 1e3)
-        flows["timeout"] = _timeouts(flows)
+        flows["timeout"] = _timeouts(flows, run.summary["min_rto_us"])
         flows["load"], flows["hosts"], flows["share"] = run.load, run.hosts, run.share
-        flows["scenario"] = run.scenario
+        flows["cutoff"] = run.cutoff
         flows["seed"], flows["bypass"] = run.seed, run.bypass
         frames.append(flows)
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-# The per-flow TCP counters that tcp-experiment writes to flows.csv (see
-# src/tcp/tcp-diagnostics.h and the report's Appendix B).  Runs from before they existed
-# have none of them.
-TIMEOUT_COLUMNS = ["data_rto_timeouts", "syn_retransmissions", "syn_ack_retransmissions"]
+def _timeouts(flows, min_rto_us):
+    """Which timeout, if any, a small flow waited for: "handshake" for a lost SYN or
+    SYN-ACK, "data" for a retransmission timeout, or "none".
 
-
-def _timeouts(flows):
-    """Which timeout, if any, each flow waited for, from the measured TCP counters:
-    "unfinished", "handshake" for any SYN or SYN-ACK retry (ns-3 resends them only after
-    a timer or a duplicate SYN, which itself follows a timer), "data" for a data
-    retransmission timer that fired, or "none".  A flow that had both counts as
-    "handshake", which sets its delay.  NaN when the run predates the counters."""
-    if any(column not in flows for column in TIMEOUT_COLUMNS):
-        return np.full(len(flows), np.nan, dtype=object)
-    handshake = (flows["syn_retransmissions"] > 0) | (flows["syn_ack_retransmissions"] > 0)
+    An FCT of at least the minimum RTO means a timeout, since a small flow that loses
+    nothing finishes in well under a millisecond: in the sweeps none take between 0.5
+    and 1 ms.  That holds for 10 KB small flows; larger ones can take over a millisecond
+    from queueing alone (see timeout_caveat).  Large flows can take longer than an RTO
+    from queueing alone, so they get "unknown" unless they waited for the handshake
+    timeout."""
+    fct = flows["fct_us"]
+    small = flows["small"] == 1
     return np.select(
-        [~np.isfinite(flows["fct_us"]), handshake, flows["data_rto_timeouts"] > 0],
-        ["unfinished", "handshake", "data"],
+        [~np.isfinite(fct), fct >= CONN_TIMEOUT_RTOS * min_rto_us, ~small, fct >= min_rto_us],
+        ["unfinished", "handshake", "unknown", "data"],
         "none",
     )
 
 
+def timeout_caveat(flows):
+    """A warning when these flows' small flows are larger than the 10 KB the timeout
+    inference assumes, or None."""
+    largest = flows.loc[flows["small"] == 1, "bytes"].max()
+    if largest > 10_000:
+        return (f"Timeouts are inferred from completion time, which assumes small flows finish within "
+                f"1 ms when nothing is lost. These small flows are up to {largest / 1000:g} KB and can "
+                f"take that long from queueing alone, so read the timeout rates as upper bounds.")
+    return None
+
+
 def timeout_table(flows, by):
-    """For small flows: the percentage that waited for each kind of timeout, measured by
-    the TCP counters, and FCT percentiles in microseconds of those that did not, which is
-    the queueing alone."""
-    if flows["timeout"].isna().any():
-        raise ValueError("These runs predate the per-flow TCP counters in flows.csv; "
-                         "rerun them to get timeout metrics.")
+    """For small flows: the percentage that waited for each kind of timeout, and FCT
+    percentiles in microseconds of those that did not, which is the queueing alone."""
 
     def describe(group):
         timeout = group["timeout"]
@@ -460,7 +479,7 @@ def load_links(runs):
         links["utilization"] = links["sent_bytes_during_arrivals"] / capacity_bytes
         links["filled"] = links["max_queue_packets"] >= run.summary["fabric_queue"]
         links["load"], links["hosts"], links["share"] = run.load, run.hosts, run.share
-        links["scenario"] = run.scenario
+        links["cutoff"] = run.cutoff
         links["seed"], links["bypass"] = run.seed, run.bypass
         frames.append(links)
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
@@ -534,7 +553,7 @@ def fan_in_table(links, by):
 def path_table(runs):
     """Share of delivered packets at each fabric hop count."""
     rows = [
-        {"bypass": run.bypass, "load": run.load, "hosts": run.hosts, "share": run.share, "scenario": run.scenario, "seed": run.seed, "class": name, "hops": hops, "fraction": fraction}
+        {"bypass": run.bypass, "load": run.load, "hosts": run.hosts, "share": run.share, "cutoff": run.cutoff, "seed": run.seed, "class": name, "hops": hops, "fraction": fraction}
         for run in runs
         for name, lengths in run.summary["path_lengths"].items()
         for hops, fraction in lengths.items()

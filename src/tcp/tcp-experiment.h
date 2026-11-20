@@ -3,7 +3,6 @@
 
 #include "flow-size-cdf.h"
 #include "spraypoint-routing.h"
-#include "tcp-diagnostics.h"
 #include "spraypoint/spraypoint.h"
 
 #include "ns3/address.h"
@@ -16,9 +15,10 @@
 #include "ns3/packet-sink.h"
 #include "ns3/packet.h"
 #include "ns3/ptr.h"
+#include "ns3/tcp-header.h"
+#include "ns3/tcp-socket-base.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -104,8 +104,7 @@ class TcpExperiment
         ns3::Time start;
         uint32_t received{0};
         ns3::Time finish;
-        std::shared_ptr<TcpDiagnostics> senderDiagnostics;
-        std::shared_ptr<TcpDiagnostics> receiverDiagnostics;
+        uint64_t dataRetransmissions{0};
     };
 
     // The applications of a flow that has started and has not been released.
@@ -141,7 +140,7 @@ class TcpExperiment
     void ConnectNodeTraces();
     void GenerateFlows();
     void StartFlow(uint32_t flow);
-    void AttachFlowDiagnostics(uint32_t flow);
+    void MarkListener(uint32_t flow) const;
     void ReleaseFlow(uint32_t flow);
     uint32_t RouterOfHost(uint32_t host) const;
     bool IsAdjacentFlow(const Flow& flow) const;
@@ -149,6 +148,12 @@ class TcpExperiment
                   ns3::Ptr<const ns3::Packet> packet,
                   const ns3::Address&,
                   const ns3::Address&);
+    void OnDataRetransmission(uint32_t flow,
+                              ns3::Ptr<const ns3::Packet>,
+                              const ns3::TcpHeader&,
+                              const ns3::Address&,
+                              const ns3::Address&,
+                              ns3::Ptr<const ns3::TcpSocketBase>);
     void OnHostDeliver(const ns3::Ipv4Header& header, ns3::Ptr<const ns3::Packet>, uint32_t);
     void OnQueueLength(uint32_t port, uint32_t, uint32_t length);
     void OnPortSent(uint32_t port, ns3::Ptr<const ns3::Packet> packet);

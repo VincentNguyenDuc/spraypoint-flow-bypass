@@ -17,7 +17,7 @@ target_link_libraries(traffic-pattern PRIVATE spraypoint project_warnings)
 include(${PROJECT_SOURCE_DIR}/cmake/Ns3.cmake)
 
 # Shared by every program built on the TCP experiment.
-add_library(tcp STATIC tcp/tcp-experiment.cc tcp/spraypoint-routing.cc tcp/tcp-options.cc tcp/tcp-diagnostics.cc)
+add_library(tcp STATIC tcp/tcp-experiment.cc tcp/spraypoint-routing.cc tcp/tcp-options.cc)
 target_link_libraries(
   tcp
   PUBLIC

@@ -9,7 +9,7 @@ The repository has four programs:
 - **TCP experiment** (`tcp-experiment`): an ns-3 simulation measuring flow completion times under default Spraypoint.
 - **TCP bypass** (`tcp-bypass`): the same simulation with the small-flow bypass on shortest paths between all routers (`--bypass=shortest`). It also supports `--bypass=adjacent`, the direct link between neighboring routers only, which the report sets aside (Section 3) and the experiments no longer run.
 
-**Start with the report, [report/report.pdf](report/report.pdf)**: it explains the project from the beginning, the models, and how to reproduce the results; its appendices cover the simulator's traffic patterns and TCP counters, the workload sweep, and the bypass in a switch pipeline. Rebuild it with `latexmk` in `report/`.
+**Start with the report, [report/report.pdf](report/report.pdf)**: it explains the project from the beginning, the models, and how to reproduce the results; its appendices cover the simulator's traffic patterns and what each run records, the workload sweeps, and the bypass in a switch pipeline. Rebuild it with `latexmk` in `report/`.
 
 The first CMake configure downloads, builds, and installs the pinned official ns-3 under `third_party/`, which takes several minutes and happens once.
 
@@ -28,11 +28,11 @@ flowchart TD
 ```
 
 - **Spraypoint core (`src/spraypoint/`):** builds the random router graph and the spray and pointing tables. It answers one question, "which neighbor is next?", and knows nothing about packets or ns-3.
-- **TCP experiment (`src/tcp/`):** connects the core to ns-3. It builds the network, runs TCP flows over it, and records the results: `traffic-pattern` picks each flow's endpoints, and `tcp-diagnostics` counts each flow's retransmissions and timeouts (report, Appendix B).
+- **TCP experiment (`src/tcp/`):** connects the core to ns-3. It builds the network, runs TCP flows over it, and records the results: `traffic-pattern` picks each flow's endpoints (report, Appendix B).
 - **TCP bypass (`src/tcp-bypass/`):** the same experiment, except that small flows can skip the spray step. It adds only that routing decision, through the two extension points the TCP experiment offers: `TcpExperiment::CreateRouting` picks each router's routing, and `SpraypointRouting::SelectNextHop` picks a packet's next hop. A new routing variant can follow the same pattern as a separate program.
 - **Tests (`test/`):** one folder per test. The verifier compares the core with the paper, without ns-3; `bypass-model` checks the bypass's models on the same tables, and its output is experiment data (`05-bypass-model`).
 - **Experiments (`experiments/`):** one script per experiment; see below.
-- **Analysis (`experiments/analysis/`):** Python scripts that read one batch of results and write tables and figures: `01-baseline.py`, `02-bypass-comparison.py`, `03-model-check.py` (the flow-level check against the permutation sweep) and `04-workloads.py` (the workload sweep), plus the standalone `bootstrap.py` and `workload_cdf.py`.
+- **Analysis (`experiments/analysis/`):** Python scripts that read one batch of results and write tables and figures: `01-baseline.py`, `02-bypass-comparison.py`, `03-model-check.py` (the flow-level check against the permutation sweep) and `04-run-summary.py` (per-run health checks, paired comparisons and crossover candidates, for any sweep), plus the standalone `bootstrap.py` (confidence intervals from `04-run-summary.py`'s `runs.csv`) and `workload_cdf.py`.
 - **Report (`report/`):** the LaTeX report. `experiments/analysis/report_figures.py` reads pinned batches through the same helpers as the analysis scripts and writes its figures and tables.
 - `REPRODUCE.sh` runs every step, from building to the analysis; `REMOTE.sh` runs it on a server over SSH; `cmake/Ns3.cmake` fetches and builds ns-3.
 
@@ -57,7 +57,10 @@ Keep this table in step with the scripts in `experiments/`, which are the source
 | `04-oversubscription` | 256 | 16 | 6, 8 | 4 ms | 0.5 | 561–563 | none, shortest | 1 ms |
 | `06-permutation` | 256 | 16 | 4 | 4 ms | 0.1, 0.2, 0.3, 0.4 | 561–563 | none, shortest | 1 ms |
 | `07-share-sweep` | 256 | 16 | 4 | 4 ms | 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
-| `08-workloads` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
+| `08-small-fraction` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 (99% small: 0.3) | 561–563 | none, shortest | 1 ms |
+| `09-small-size` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
+| `10-websearch` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
+| `11-hadoop` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
 
 `06-permutation` uses `--pattern=router-permutation` to send each router's traffic to one partner router. It sweeps small-flow sizes of 10, 27.8 and 47.6 KB, which carry 8.3%, 20% and 30% of the bytes. `07-share-sweep` sweeps the same sizes under uniform traffic.
 
@@ -71,15 +74,9 @@ All simulations share these settings, with the workload variations described for
 - **Traffic:** uniform random hosts, with 90% of flows at 10 KB and 10% at 1 MB, so small flows carry 8.3% of the bytes
 - **TCP:** 1 ms minimum retransmission timeout
 
-### Workload sweep (H2)
+### Workload sweeps
 
-`08-workloads` tests H2 on workloads with more of the bytes in small flows: more or larger small flows, and the WebSearch and Hadoop flow-size distributions with small-flow cutoffs of 10 KB, 100 KB and 1 MB (report, Appendix C). Its large scenarios need far more memory than the rest, so it runs through its own queue, which admits runs by their estimated memory:
-
-```bash
-RESULTS_BATCH=<unique-batch-name> JOBS=8 bash experiments/run-workloads.sh --memory-gb 12
-```
-
-`run-workloads.sh` freezes the sources and programs into the batch and runs `experiments/workload-queue.py`, which plans 210 runs (`08-workloads` plus `03-load-sweep`) from the scripts and reruns `04-workloads.py` as they finish, writing to `<batch>/analysis/08-workloads-summary/`. Add `--dry-run` to see the plan and the runs that won't fit the budget. Rerun with the same `RESULTS_BATCH` to resume; finished runs are skipped. The batch's `status` file says `running`, `complete`, `failed`, `stopped` or `blocked-memory` (only runs too large for the budget are left). `./REPRODUCE.sh` includes the sweep with `RUN_WORKLOADS=1`. To run part of it with the ordinary scripts instead, set `EXPERIMENT_SCENARIOS`, `EXPERIMENT_LOADS` or `EXPERIMENT_SEEDS`.
+`08-small-fraction` to `11-hadoop` test H2 on workloads with more of the bytes in small flows (report, Appendix C). `08-small-fraction` makes 95% or 99% of flows small and `09-small-size` makes the small flows 50 or 100 KB, raising the small flows' share of bytes to 16–50%. `10-websearch` and `11-hadoop` draw flow sizes from published distributions, with small-flow cutoffs of 10 KB, 100 KB and 1 MB. Runs with 99% small flows need about 10 GB at load 0.3 and more at higher loads, so that case runs at load 0.3 only.
 
 ## Workflow
 
@@ -103,7 +100,14 @@ JOBS=6 experiments/06-permutation-baseline.sh  # permutation traffic around satu
 JOBS=6 experiments/06-permutation-bypass.sh
 JOBS=4 experiments/07-share-sweep-baseline.sh  # small flows' share of bytes, uniform traffic
 JOBS=4 experiments/07-share-sweep-bypass.sh
-RESULTS_BATCH=<name> JOBS=8 bash experiments/run-workloads.sh --memory-gb 12  # workload sweep; with RUN_WORKLOADS=1
+JOBS=2 experiments/08-small-fraction-baseline.sh  # more small flows; up to 10 GB per run
+JOBS=2 experiments/08-small-fraction-bypass.sh
+JOBS=4 experiments/09-small-size-baseline.sh   # larger small flows
+JOBS=4 experiments/09-small-size-bypass.sh
+JOBS=6 experiments/10-websearch-baseline.sh    # published flow-size distributions
+JOBS=6 experiments/10-websearch-bypass.sh
+JOBS=4 experiments/11-hadoop-baseline.sh
+JOBS=4 experiments/11-hadoop-bypass.sh
 cmake --build build --target format            # format the C++ code before committing
 ```
 
@@ -114,4 +118,4 @@ cmake --build build --target format            # format the C++ code before comm
 - **Add a test:** create `test/<name>/` with a `CMakeLists.txt`, and add it to `test/CMakeLists.txt`.
 - **Run with other settings:** pass options to a program in `build/bin/`. `--PrintHelp` lists the options of `tcp-experiment` and `tcp-bypass`, and `--help` lists those of `spraypoint-verifier` and `bypass-model`.
 
-The simulator supports `uniform`, `permutation` (cyclic host-ID shift), `router-permutation` (seeded router partners), `hotspot`, and `incast` traffic. Each run's `flows.csv` records per-flow TCP counters, including data retransmission timeouts and handshake retries, and `links.csv` records each port's load and drops. The report's Appendix B describes both.
+The simulator supports `uniform`, `permutation` (cyclic host-ID shift), `router-permutation` (seeded router partners), `hotspot`, and `incast` traffic. Each run's `flows.csv` records every flow's endpoints, size, start and finish times and data retransmissions, and `links.csv` records each port's load and drops. The report's Appendix B describes both.

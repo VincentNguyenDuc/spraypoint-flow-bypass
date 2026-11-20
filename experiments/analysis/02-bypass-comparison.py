@@ -67,6 +67,8 @@ out.table("flow-by-flow", paired.groupby(["class", *common.SETTINGS, "bypass"]).
 ))
 
 out.heading("Why: fewer timeouts", 3)
+if caveat := common.timeout_caveat(flows):
+    out.text(caveat)
 out.table("timeouts", common.timeout_table(flows, ["class", *common.SETTINGS, "bypass"]))
 out.figures_from(common.plot_metric_by_mode(flows, "any_timeout_pct", "Flows with a timeout (%)",
                                             table=common.timeout_table, classes=common.SMALL_CLASSES), "timeouts")

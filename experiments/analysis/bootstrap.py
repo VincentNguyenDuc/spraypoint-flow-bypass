@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Paired cluster bootstrap for the workload sweep's (H2) p99s.  It resamples whole topology
+"""Paired cluster bootstrap for a sweep's p99s.  It resamples whole topology
 seeds with both modes together, and offers two estimands: the mean of each run's p99
 (mean-run-p99) or the p99 of the pooled flows (pooled-p99).  With few seeds the intervals
 are exploratory; see the report's appendix on the workload sweep."""
@@ -78,7 +78,7 @@ def _stamp(path):
 
 
 def load_csv(path, classes):
-    """Read the runs.csv schema that 04-workloads.py writes (optional run_id for repeated runs)."""
+    """Read the runs.csv schema that 04-run-summary.py writes (optional run_id for repeated runs)."""
     before = _stamp(path)
     data = path.read_bytes()
     rows = list(csv.DictReader(data.decode().splitlines()))
@@ -99,18 +99,12 @@ def load_csv(path, classes):
                   "caveat": "Aggregate inputs trust upstream p99 calculation, trimming, completion, and run settings."}
 
 
-def _sweep(directory):
-    """The sweep of an experiment folder of the workload sweep, or None for any other."""
-    match = re.fullmatch(r"(03-load-sweep|08-workloads)-(baseline|bypass)", directory.name)
-    return match[1] if match else None
-
-
-def _scenario(sweep, run):
-    """A run's workload scenario: "default" in 03-load-sweep, otherwise the start of its
-    folder name, <scenario>_load-..., after any bypass prefix."""
-    if sweep == "03-load-sweep":
-        return "default"
-    return run.name.removeprefix("shortest_").split("_load-")[0]
+def _scenario(run):
+    """A run's condition other than load and seed: the start of its folder name, such as
+    fraction-0.95 in [shortest_]fraction-0.95_load-0.3_seed-561, or "default" when
+    the name has no other condition (see common.Run.scenario)."""
+    name = run.name.removeprefix("shortest_")
+    return name.split("_load-")[0] if "_load-" in name else "default"
 
 
 def _read_run(directory, scenario, classes, trim):
@@ -176,11 +170,11 @@ def _read_run(directory, scenario, classes, trim):
     return run, {"path": str(directory), "files": before}
 
 
-def load_batch(path, classes, trim=.1, scenarios=(), loads=()):
+def load_batch(path, classes, trim=.1, scenarios=(), loads=(), sweep="03-load-sweep"):
+    """The finished runs of one sweep in a batch: its -baseline and -bypass folders."""
     runs, inputs, ignored = [], [], []
-    for experiment in sorted(path.iterdir()):
-        sweep = _sweep(experiment)
-        if not experiment.is_dir() or sweep is None:
+    for experiment in (path / f"{sweep}-baseline", path / f"{sweep}-bypass"):
+        if not experiment.is_dir():
             continue
         for directory in sorted(experiment.iterdir()):
             if not directory.is_dir():
@@ -188,7 +182,7 @@ def load_batch(path, classes, trim=.1, scenarios=(), loads=()):
             if directory.suffix in (".partial", ".failed"):
                 ignored.append(str(directory))
                 continue
-            scenario = _scenario(sweep, directory)
+            scenario = _scenario(directory)
             if scenarios and scenario not in scenarios:
                 continue
             if loads:
@@ -380,11 +374,13 @@ def json_safe(value):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--batch", type=Path, help="workload-sweep batch with finalized run directories")
-    source.add_argument("--runs-csv", type=Path, help="stable copy of the runs.csv that 04-workloads.py writes")
+    source.add_argument("--batch", type=Path, help="batch with finalized run directories; see --sweep")
+    source.add_argument("--runs-csv", type=Path, help="stable copy of the runs.csv that 04-run-summary.py writes")
     parser.add_argument("--output", type=Path, required=True, help="New directory outside the input directory")
     parser.add_argument("--class", dest="classes", action="append", choices=CLASSES)
     parser.add_argument("--mode", dest="modes", action="append", choices=MODES[1:])
+    parser.add_argument("--sweep", default="03-load-sweep",
+                        help="with --batch, the sweep to read, such as 11-hadoop (default 03-load-sweep)")
     parser.add_argument("--scenario", action="append", default=[])
     parser.add_argument("--load", type=float, action="append", default=[])
     parser.add_argument("--estimand", choices=("mean-run-p99", "pooled-p99"), default="mean-run-p99")
@@ -407,7 +403,7 @@ def main(argv=None):
             raise ValueError("CSV input supports mean-run-p99 with its upstream trim only; use --batch for raw-flow analysis")
         classes, modes = list(dict.fromkeys(args.classes or ["small"])), list(dict.fromkeys(args.modes or MODES[1:]))
         if args.batch:
-            runs, provenance = load_batch(source_path, classes, args.trim, args.scenario, args.load)
+            runs, provenance = load_batch(source_path, classes, args.trim, args.scenario, args.load, args.sweep)
         else:
             runs, provenance = load_csv(source_path, classes)
         runs = [run for run in runs if run.mode in MODES and (not args.scenario or run.scenario in args.scenario)

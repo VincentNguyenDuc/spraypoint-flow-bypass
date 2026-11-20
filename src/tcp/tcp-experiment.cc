@@ -189,10 +189,6 @@ TcpExperiment::BuildNetwork()
     stack.SetRoutingHelper(staticRouting);
     stack.Install(m_routers);
     stack.Install(m_hosts);
-    for (uint32_t host = 0; host < m_hosts.GetN(); ++host)
-    {
-        TcpDiagnosticsSocketFactory::Install(m_hosts.Get(host));
-    }
 
     PointToPointHelper link;
     link.SetDeviceAttribute(
@@ -408,7 +404,7 @@ TcpExperiment::StartFlow(uint32_t index)
         SpraypointRouting::HostAddress(RouterOfHost(flow.destinationHost),
                                        flow.destinationHost % m_config.hostsPerRouter);
 
-    PacketSinkHelper sinkHelper("rng::TcpDiagnosticsSocketFactory",
+    PacketSinkHelper sinkHelper("ns3::TcpSocketFactory",
                                 InetSocketAddress(Ipv4Address::GetAny(), flow.port));
     sinkHelper.SetAttribute("Tos", UintegerValue(tos));
     auto sink = sinkHelper.Install(m_hosts.Get(flow.destinationHost));
@@ -416,19 +412,24 @@ TcpExperiment::StartFlow(uint32_t index)
         "RxWithAddresses",
         MakeCallback(&TcpExperiment::OnSinkRx, this).Bind(index));
 
-    BulkSendHelper sourceHelper("rng::TcpDiagnosticsSocketFactory", InetSocketAddress(destination, flow.port));
+    BulkSendHelper sourceHelper("ns3::TcpSocketFactory", InetSocketAddress(destination, flow.port));
     sourceHelper.SetAttribute("MaxBytes", UintegerValue(flow.bytes));
     sourceHelper.SetAttribute("SendSize", UintegerValue(SEGMENT_BYTES));
     sourceHelper.SetAttribute("Tos", UintegerValue(tos));
     auto source = sourceHelper.Install(m_hosts.Get(flow.sourceHost));
+    source.Get(0)->TraceConnectWithoutContext(
+        "TcpRetransmission", MakeCallback(&TcpExperiment::OnDataRetransmission, this).Bind(index));
 
     m_active[index] = ActiveFlow{DynamicCast<PacketSink>(sink.Get(0)),
                                  DynamicCast<BulkSendApplication>(source.Get(0))};
 
-    // Factories already observe the first SYN and listener forks. Capture their
-    // counters after the applications start, retaining the existing early mark
-    // for small-flow SYN-ACKs before they cross the configured links.
-    Simulator::Schedule(NanoSeconds(1), &TcpExperiment::AttachFlowDiagnostics, this, index);
+    if (flow.small)
+    {
+        // PacketSink marks a socket only once the handshake completes, so the
+        // SYN-ACK would go out unmarked.  The sink starts in this time step, and
+        // no SYN can arrive before the next nanosecond.
+        Simulator::Schedule(NanoSeconds(1), &TcpExperiment::MarkListener, this, index);
+    }
     if (index + 1 < m_flows.size())
     {
         Simulator::Schedule(m_flows[index + 1].start - Simulator::Now(),
@@ -439,20 +440,20 @@ TcpExperiment::StartFlow(uint32_t index)
 }
 
 void
-TcpExperiment::AttachFlowDiagnostics(uint32_t index)
+TcpExperiment::OnDataRetransmission(uint32_t index,
+                                    Ptr<const Packet>,
+                                    const TcpHeader&,
+                                    const Address&,
+                                    const Address&,
+                                    Ptr<const TcpSocketBase>)
 {
-    const auto active = m_active.find(index);
-    if (active == m_active.end())
-    {
-        return;
-    }
-    auto& flow = m_flows[index];
-    flow.senderDiagnostics = GetTcpDiagnostics(active->second.source->GetSocket());
-    flow.receiverDiagnostics = GetTcpDiagnostics(active->second.sink->GetListeningSocket());
-    if (flow.small)
-    {
-        active->second.sink->GetListeningSocket()->SetIpTos(SpraypointRouting::SMALL_FLOW_TOS);
-    }
+    ++m_flows[index].dataRetransmissions;
+}
+
+void
+TcpExperiment::MarkListener(uint32_t index) const
+{
+    m_active.at(index).sink->GetListeningSocket()->SetIpTos(SpraypointRouting::SMALL_FLOW_TOS);
 }
 
 void
@@ -491,10 +492,6 @@ TcpExperiment::OnSinkRx(uint32_t index, Ptr<const Packet> packet, const Address&
     flow.received += packet->GetSize();
     if (flow.received >= flow.bytes && flow.finish.IsZero())
     {
-        // Also covers completion before the scheduled pointer-capture callback.
-        AttachFlowDiagnostics(index);
-        flow.senderDiagnostics->Stop();
-        flow.receiverDiagnostics->Stop();
         flow.finish = Simulator::Now();
         if (++m_completed == m_flows.size())
         {
@@ -725,9 +722,7 @@ TcpExperiment::WriteFlows(const std::string& path) const
 {
     std::ofstream file(path);
     file << "flow,source_router,destination_router,adjacent,small,bytes,start_ns,finish_ns,"
-            "data_retransmissions,syn_retransmissions,syn_ack_retransmissions,"
-            "data_rto_timeouts,data_rto_retransmissions,data_fast_recovery_retransmissions,"
-            "data_other_retransmissions,handshake_timeouts\n";
+            "data_retransmissions\n";
     for (size_t index = 0; index < m_flows.size(); ++index)
     {
         const auto& flow = m_flows[index];
@@ -739,24 +734,7 @@ TcpExperiment::WriteFlows(const std::string& path) const
         {
             file << flow.finish.GetNanoSeconds();
         }
-        const auto* sender = flow.senderDiagnostics ? &flow.senderDiagnostics->Counts() : nullptr;
-        const auto* receiver = flow.receiverDiagnostics ? &flow.receiverDiagnostics->Counts() : nullptr;
-        const auto append = [&file](const TcpDiagnosticCounts* counts,
-                                    uint64_t TcpDiagnosticCounts::* member) {
-            file << ",";
-            if (counts)
-            {
-                file << (counts->*member);
-            }
-        };
-        append(sender, &TcpDiagnosticCounts::dataRetransmissions);
-        append(sender, &TcpDiagnosticCounts::synRetransmissions);
-        append(receiver, &TcpDiagnosticCounts::synAckRetransmissions);
-        append(sender, &TcpDiagnosticCounts::dataRtoTimeouts);
-        append(sender, &TcpDiagnosticCounts::dataRtoRetransmissions);
-        append(sender, &TcpDiagnosticCounts::dataFastRecoveryRetransmissions);
-        append(sender, &TcpDiagnosticCounts::dataOtherRetransmissions);
-        file << ",\n"; // Handshake timer expirations are not observable here.
+        file << "," << flow.dataRetransmissions << "\n";
     }
     if (!file.flush())
     {

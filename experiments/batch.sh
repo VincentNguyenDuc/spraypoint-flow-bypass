@@ -14,14 +14,6 @@
 #   anyway, or RESULTS_BATCH=<batch> to use a given one.  Uncommitted code always
 #   starts a new batch, since the name can't tell two versions of it apart.
 
-# A frozen experiment batch supplies its absolute output location and code identity.
-if [[ -n ${EXPERIMENT_BATCH_DIR:-} ]]; then
-    BATCH_DIR=$EXPERIMENT_BATCH_DIR
-    CODE_COMMIT=${EXPERIMENT_CODE_COMMIT:?frozen batch needs a code identity}
-    export RESULTS_MACHINE RESULTS_BATCH
-    return 0
-fi
-
 CODE_PATHS=(src cmake CMakeLists.txt 'experiments/[0-9]*.sh' test/spraypoint-verifier test/bypass-model)
 RESULTS_MACHINE=${RESULTS_MACHINE:-local}
 CODE_COMMIT=$(git -C "$ROOT" log -1 --format=%h -- "${CODE_PATHS[@]}")

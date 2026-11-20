@@ -33,11 +33,8 @@ experiments/01-smoke-baseline.sh
 experiments/01-smoke-bypass.sh
 experiments/02-small-sweep-baseline.sh
 experiments/02-small-sweep-bypass.sh
-# With the workload sweep enabled, its queue also runs the main load sweep.
-if [[ ${RUN_WORKLOADS:-0} != 1 ]]; then
-    experiments/03-load-sweep-baseline.sh
-    experiments/03-load-sweep-bypass.sh
-fi
+experiments/03-load-sweep-baseline.sh
+experiments/03-load-sweep-bypass.sh
 # The 8-host and load-0.7 runs need 6-8 GB each, so at most 4 run at once.
 BIG_JOBS=$((${JOBS:-1} < 4 ? ${JOBS:-1} : 4))
 JOBS=$BIG_JOBS experiments/04-oversubscription-baseline.sh
@@ -48,18 +45,22 @@ experiments/06-permutation-baseline.sh
 experiments/06-permutation-bypass.sh
 JOBS=$BIG_JOBS experiments/07-share-sweep-baseline.sh
 JOBS=$BIG_JOBS experiments/07-share-sweep-bypass.sh
+# Runs with many small flows need up to 10 GB each, so at most 2 run at once.
+HUGE_JOBS=$((${JOBS:-1} < 2 ? ${JOBS:-1} : 2))
+JOBS=$HUGE_JOBS experiments/08-small-fraction-baseline.sh
+JOBS=$HUGE_JOBS experiments/08-small-fraction-bypass.sh
+JOBS=$BIG_JOBS experiments/09-small-size-baseline.sh
+JOBS=$BIG_JOBS experiments/09-small-size-bypass.sh
+experiments/10-websearch-baseline.sh
+experiments/10-websearch-bypass.sh
+JOBS=$BIG_JOBS experiments/11-hadoop-baseline.sh
+JOBS=$BIG_JOBS experiments/11-hadoop-bypass.sh
 
 if [ ! -x experiments/analysis/.venv/bin/python ]; then
     python3 -m venv experiments/analysis/.venv
     experiments/analysis/.venv/bin/pip install --quiet -r experiments/analysis/requirements.txt
 fi
 
-# The workload sweep (see the README) takes far longer and more memory than the
-# rest, so it only runs with RUN_WORKLOADS=1.
-if [[ ${RUN_WORKLOADS:-0} == 1 ]]; then
-    step "Workload sweep"
-    bash experiments/run-workloads.sh
-fi
 
 step "Analysis"
 # analyze <script> <sweep>: runs an analysis script on one sweep of this batch, writing
@@ -67,9 +68,11 @@ step "Analysis"
 analyze() {
     experiments/analysis/.venv/bin/python "experiments/analysis/$1" --sweep "$2" --results "$BATCH_DIR"
 }
-for sweep in 02-small-sweep 03-load-sweep 04-oversubscription 06-permutation 07-share-sweep; do
+for sweep in 02-small-sweep 03-load-sweep 04-oversubscription 06-permutation 07-share-sweep \
+    08-small-fraction 09-small-size 10-websearch 11-hadoop; do
     analyze 01-baseline.py "$sweep"
     analyze 02-bypass-comparison.py "$sweep"
+    analyze 04-run-summary.py "$sweep"
 done
 # Compares 06-permutation with the flow-level check in 05-bypass-model.
 analyze 03-model-check.py 06-permutation

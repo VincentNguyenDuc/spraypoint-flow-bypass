@@ -30,11 +30,14 @@ Flows go between hosts in one of two patterns:
 \toprule
 Experiment & Traffic & Network & What varies \\
 \midrule
-\file{03-load-sweep} & uniform & 256 routers, 4 hosts each & load 0.1, 0.3, 0.5 \\
+\file{03-load-sweep} & uniform & 256 routers, 4 hosts each & load 0.1, 0.3, 0.5, 0.7, 0.9 \\
 \file{04-oversubscription} & uniform & as \file{03}, 6 and 8 hosts each & hosts per router, at load 0.5 \\
 \file{05-bypass-model} & permutation & flow level: 256/16 and 1{,}000/64 & $f$ from 0 to 30\%, 10 permutations \\
 \file{06-permutation} & permutation & as \file{03} & $f$ = 8.3, 20, 30\%; load 0.1--0.4 \\
 \file{07-share-sweep} & uniform & as \file{03} & $f$ = 8.3, 20, 30\%; load 0.5, 0.7 \\
+\file{08-small-fraction} & uniform & as \file{03} & 95, 99\% small flows ($f$ = 16, 50\%); load 0.3--0.7 \\
+\file{09-small-size} & uniform & as \file{03} & 50, 100\,KB small flows ($f$ = 31, 47\%); load 0.3--0.7 \\
+\file{10-websearch}, \file{11-hadoop} & uniform & as \file{03} & published flow sizes, cutoff 10\,KB--1\,MB; load 0.3--0.7 (\appref{app:workloads}) \\
 \bottomrule
 \end{tabularx}
 \caption{Experiments. All ns-3 sweeps run with no bypass and with the shortest-path bypass.}
@@ -43,7 +46,7 @@ Experiment & Traffic & Network & What varies \\
 
 \subsection{Metrics}
 
-\paragraph{Small-flow latency.} The \textbf{median} completion time, the \textbf{timeout rate} (the share of small flows whose connection waited for a data retransmission timeout or retried its handshake, counted per flow by instrumenting each TCP socket in the simulator; \appref{app:simulator}), and the \textbf{clean p99} (the p99 of flows that did not, which is queueing alone).
+\paragraph{Small-flow latency.} The \textbf{median} completion time, the \textbf{timeout rate} (the share of small flows that waited for any retransmission or connection timeout, inferred from completion time; \appref{app:simulator}), and the \textbf{clean p99} (the p99 of flows that did not, which is queueing alone).
 
 \paragraph{Cost to other traffic.} Each large flow's \textbf{goodput}, its bytes over its completion time: the mean and the slowest 1\%. Under permutation traffic, the \textbf{throughput kept} per router pair, its large-flow goodput with the bypass over the same pair's without it, and its minimum over pairs, the \textbf{worst pair}.
 
