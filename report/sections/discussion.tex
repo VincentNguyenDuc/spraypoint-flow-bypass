@@ -3,7 +3,7 @@
 
 \subsection{Is the safe region realistic?}
 
-The models give a share of small bytes $f$ below which the bypass is safe even under worst-case traffic. Real datacenter traffic is dominated by a few large flows, so we compare that threshold with the share of bytes in small flows for two published flow-size distributions, the web search workload from DCTCP~\cite{dctcp} and Facebook's Hadoop workload~\cite{fbdc}, as distributed with HPCC~\cite{hpcc} (\file{experiments/workloads/}), at several small-flow cutoffs. Two caveats: these are averages over all pairs, and services that exchange mostly small messages can have pairs far above them; and modern services often reuse long-lived connections, so ``small'' should mean a small message, not a short connection.
+The models give a share of small bytes $f$ below which the bypass is safe even under worst-case traffic. Real datacenter traffic is dominated by a few large flows, so we compare that threshold with the share of bytes in small flows for two published flow-size distributions, the web search workload from DCTCP~\cite{dctcp} and Facebook's Hadoop workload~\cite{fbdc}, as distributed with HPCC~\cite{hpcc} (\file{experiments/workloads/}), at several small-flow cutoffs, and \file{10-websearch} and \file{11-hadoop} simulate both distributions directly. Two caveats: these are averages over all pairs, and services that exchange mostly small messages can have pairs far above them; and modern services often reuse long-lived connections, so ``small'' should mean a small message, not a short connection.
 
 \subsection{What the models can and can't tell us}
 

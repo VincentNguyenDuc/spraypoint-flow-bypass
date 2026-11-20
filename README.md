@@ -47,36 +47,25 @@ An experiment is a script that says which runs to do. Data moves one way, from s
 
 ## Experiments
 
-Keep this table in step with the scripts in `experiments/`, which are the source of truth.
+Keep this table in step with the scripts in `experiments/`, which are the source of truth. Each simulated experiment has a `-baseline` script (no bypass) and a `-bypass` script (shortest-path bypass) that run the same flows; most also share a `-settings` file.
 
-| Experiment | Routers | Degree | Hosts per router | Span | Loads | Seeds | Bypass modes | Release delay |
-| --- | ---: | ---: | ---: | ---: | --- | --- | --- | ---: |
-| `01-smoke` | 64 | 8 | 2 | 1 ms | 0.1, 0.3 with no bypass; 0.3 with a bypass | 561 | none, shortest | 500 µs |
-| `02-small-sweep` | 64 | 8 | 2 | 4 ms | 0.1, 0.3, 0.5, 0.7 | 561–565 | none, shortest | 1 ms |
-| `03-load-sweep` | 256 | 16 | 4 | 4 ms | 0.1, 0.3, 0.5, 0.7, 0.9 | 561–563 | none, shortest | 1 ms |
-| `04-oversubscription` | 256 | 16 | 6, 8 | 4 ms | 0.5 | 561–563 | none, shortest | 1 ms |
-| `06-permutation` | 256 | 16 | 4 | 4 ms | 0.1, 0.2, 0.3, 0.4 | 561–563 | none, shortest | 1 ms |
-| `07-share-sweep` | 256 | 16 | 4 | 4 ms | 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
-| `08-small-fraction` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 (99% small: 0.3) | 561–563 | none, shortest | 1 ms |
-| `09-small-size` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
-| `10-websearch` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
-| `11-hadoop` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
+Unless a note says otherwise, a run has 256 routers of degree 16 with 4 hosts each, 4 waypoints and 2 pointing next hops; 100 Gbps links with 500 ns delay; router queues of 100 packets and host queues of 1,000; flows arriving for 4 ms with a 1 ms release delay, 90% of them 10 KB and 10% 1 MB, so small flows carry f = 8.3% of the bytes; and a 1 ms minimum TCP retransmission timeout.
 
-`06-permutation` uses `--pattern=router-permutation` to send each router's traffic to one partner router. It sweeps small-flow sizes of 10, 27.8 and 47.6 KB, which carry 8.3%, 20% and 30% of the bytes. `07-share-sweep` sweeps the same sizes under uniform traffic.
+| Experiment | What it tests | Traffic | What varies | Seeds | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `01-smoke` | the whole pipeline end to end, in seconds | uniform | load 0.1 and 0.3; bypass at 0.3 | 561 | 64 routers of degree 8 with 2 hosts each; flows for 1 ms, release delay 500 µs |
+| `02-small-sweep` | a quick sweep on a small network | uniform | load 0.1–0.7 | 561–565 | 64 routers of degree 8 with 2 hosts each |
+| `03-load-sweep` | H1, H3, and H2 with the default workload | uniform | load 0.1–0.9 | 561–563 | |
+| `04-oversubscription` | H2 with a busier fabric at the same host load | uniform | 6 or 8 hosts per router, load 0.5 | 561–563 | |
+| `05-bypass-model` | the models of Section 5, at flow level without packets | permutation | small byte share f 0–30%, at 256 and 1,000 routers | 561–563 | not a simulation: runs `bypass-model` on the routing tables, at degree 16 and 64 |
+| `06-permutation` | H2 in the worst case, and the models against ns-3 | router permutation | f 8.3, 20, 30%; load 0.1–0.4 | 561–563 | f set by 10, 27.8 or 47.6 KB small flows; every router sends to one partner |
+| `07-share-sweep` | H2 with more bytes in small flows | uniform | f 8.3, 20, 30%; load 0.5, 0.7 | 561–563 | the same small-flow sizes as `06` |
+| `08-small-fraction` | H2 with more of the flows small | uniform | 95% or 99% small flows (f 16%, 50%); load 0.3–0.7 | 561–563 | 99% runs at load 0.3 only: about 10 GB per run there, more at higher loads |
+| `09-small-size` | H2 with larger small flows | uniform | 50 or 100 KB small flows (f 31%, 47%); load 0.3–0.7 | 561–563 | a flow counts as small up to its small size |
+| `10-websearch` | H2 on a published workload | uniform | small-flow cutoff 10 KB, 100 KB, 1 MB; load 0.3–0.7 | 561–563 | WebSearch flow sizes (report, Appendix C) |
+| `11-hadoop` | H2 on a published workload | uniform | the same cutoffs; load 0.3–0.7 | 561–563 | Hadoop flow sizes (report, Appendix C) |
 
-`05-bypass-model` is not a simulation. It checks the models of the report's Section 5 against the routing tables with `bypass-model`, at 256 routers of degree 16 and 1,000 of degree 64, for seeds 561–563.
-
-All simulations share these settings, with the workload variations described for each sweep:
-
-- **Routing:** 4 waypoints and 2 pointing next hops
-- **Links:** 100 Gbps with 500 ns delay
-- **Queues:** 100 packets at routers and 1,000 at hosts
-- **Traffic:** uniform random hosts, with 90% of flows at 10 KB and 10% at 1 MB, so small flows carry 8.3% of the bytes
-- **TCP:** 1 ms minimum retransmission timeout
-
-### Workload sweeps
-
-`08-small-fraction` to `11-hadoop` test H2 on workloads with more of the bytes in small flows (report, Appendix C). `08-small-fraction` makes 95% or 99% of flows small and `09-small-size` makes the small flows 50 or 100 KB, raising the small flows' share of bytes to 16–50%. `10-websearch` and `11-hadoop` draw flow sizes from published distributions, with small-flow cutoffs of 10 KB, 100 KB and 1 MB. Runs with 99% small flows need about 10 GB at load 0.3 and more at higher loads, so that case runs at load 0.3 only.
+Results are not committed. The report's figures and tables come from `experiments/analysis/report_figures.py`, which reads the batches pinned in it; none are pinned yet, so the report has no results until the sweeps are run and pinned.
 
 ## Workflow
 
@@ -112,10 +101,15 @@ cmake --build build --target format            # format the C++ code before comm
 ```
 
 - **Reproduce an experiment:** run its script. It builds what it needs, and rerunning skips finished runs, so an interrupted experiment picks up where it stopped.
-- **Analyze results:** run `python3 -m venv experiments/analysis/.venv && experiments/analysis/.venv/bin/pip install -r experiments/analysis/requirements.txt` once, then run a script with that Python: `01-baseline.py` summarizes a sweep's baseline, `02-bypass-comparison.py` compares its bypass runs with the baseline on the same flows, and `03-model-check.py` compares `06-permutation` with the flow-level check in `05-bypass-model`. Each reads whatever runs have finished in the newest batch with its sweep, `03-load-sweep` unless `--sweep` picks another, such as `04-oversubscription` (hosts per router instead of loads) or `06-permutation` and `07-share-sweep` (the small flows' share of bytes and the load). `--results` picks another batch folder (or set `RESULTS_MACHINE` and `RESULTS_BATCH`). Each writes `README.md` with its tables, plus one CSV per table and one PNG per figure, to `<batch>/analysis/<sweep>-<name>/`, or to `--output`.
+- **Analyze results:** run `python3 -m venv experiments/analysis/.venv && experiments/analysis/.venv/bin/pip install -r experiments/analysis/requirements.txt` once, then run a script with that Python: `01-baseline.py` summarizes a sweep's baseline, `02-bypass-comparison.py` compares its bypass runs with the baseline on the same flows, `03-model-check.py` compares `06-permutation` with the flow-level check in `05-bypass-model`, and `04-run-summary.py` checks every run's health and lists each condition's paired comparison and crossover candidates. Each reads whatever runs have finished in the newest batch with its sweep, `03-load-sweep` unless `--sweep` picks another. Tables and figures group runs by what the sweep varies: the load; hosts per router for `04-oversubscription`; the small byte share and load for `06` to `09`; the cutoff and load for `10` and `11`. `--results` picks another batch folder (or set `RESULTS_MACHINE` and `RESULTS_BATCH`). Each writes `README.md` with its tables, plus one CSV per table and one PNG per figure, to `<batch>/analysis/<sweep>-<name>/`, or to `--output`.
 - **Run on a server:** copy `.env.example` to `.env` and fill in the login, then run `./REMOTE.sh start`. It sends the current commit and runs `./REPRODUCE.sh` there, which keeps going after you disconnect. `./REMOTE.sh status` or `logs` shows its progress, and `./REMOTE.sh fetch` copies the results into `experiments/results/remote/`. The server needs `git`, `cmake`, `make`, a C++ compiler, and `python3` with `venv`, and password logins need `sshpass` locally (`brew install sshpass`).
 - **Add an experiment:** copy a script in `experiments/` and change its settings.
 - **Add a test:** create `test/<name>/` with a `CMakeLists.txt`, and add it to `test/CMakeLists.txt`.
 - **Run with other settings:** pass options to a program in `build/bin/`. `--PrintHelp` lists the options of `tcp-experiment` and `tcp-bypass`, and `--help` lists those of `spraypoint-verifier` and `bypass-model`.
 
 The simulator supports `uniform`, `permutation` (cyclic host-ID shift), `router-permutation` (seeded router partners), `hotspot`, and `incast` traffic. Each run's `flows.csv` records every flow's endpoints, size, start and finish times and data retransmissions, and `links.csv` records each port's load and drops. The report's Appendix B describes both.
+
+## To do
+
+- **Run and pin the results.** Run the sweeps (`./REPRODUCE.sh`, or `./REMOTE.sh start` on the server), pin each sweep's batch in `experiments/analysis/report_figures.py`, and fill in the report's results.
+- **Count timeouts exactly.** Timeouts are now inferred from completion time and `data_retransmissions` (`experiments/analysis/common.py`). Per-flow TCP counters of data retransmission timer firings and SYN/SYN-ACK retries would make them exact and tell a timeout from a fast retransmit. Yusong implemented these in commit `4c6baaa` (`src/tcp/tcp-diagnostics.{h,cc}`, removed in `453fe48` so new runs match the existing batches); restoring them means rerunning the sweeps.

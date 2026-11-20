@@ -316,19 +316,25 @@ def load_flows(runs, trim=TRIM_FRACTION):
 
 
 def _timeouts(flows, min_rto_us):
-    """Which timeout, if any, a small flow waited for: "handshake" for a lost SYN or
-    SYN-ACK, "data" for a retransmission timeout, or "none".
+    """Which timeout, if any, a small flow waited for, inferred from its completion time:
+    "handshake" for a lost SYN or SYN-ACK, "data" for a retransmission timeout, or "none".
 
-    An FCT of at least the minimum RTO means a timeout, since a small flow that loses
-    nothing finishes in well under a millisecond: in the sweeps none take between 0.5
-    and 1 ms.  That holds for 10 KB small flows; larger ones can take over a millisecond
-    from queueing alone (see timeout_caveat).  Large flows can take longer than an RTO
-    from queueing alone, so they get "unknown" unless they waited for the handshake
-    timeout."""
+    A small flow that loses nothing finishes in well under the minimum RTO, so one that
+    took at least the connection timeout lost its handshake, and one that took at least
+    the minimum RTO and retransmitted data waited for a data timeout.  Requiring the
+    retransmission keeps flows that were merely slow from queueing, as larger small flows
+    can be, out of the timeouts; it can't tell a timeout from a fast retransmit, so a slow
+    flow that had only a fast retransmit still counts (see timeout_caveat).  Large flows
+    can take longer than an RTO from queueing alone, so they get "unknown" unless they
+    waited for the connection timeout.
+
+    TODO: count timeouts exactly instead, with per-flow TCP counters of data
+    retransmission timer firings and SYN/SYN-ACK retries (see the README's To do)."""
     fct = flows["fct_us"]
     small = flows["small"] == 1
+    retransmitted = flows["data_retransmissions"] > 0
     return np.select(
-        [~np.isfinite(fct), fct >= CONN_TIMEOUT_RTOS * min_rto_us, ~small, fct >= min_rto_us],
+        [~np.isfinite(fct), fct >= CONN_TIMEOUT_RTOS * min_rto_us, ~small, (fct >= min_rto_us) & retransmitted],
         ["unfinished", "handshake", "unknown", "data"],
         "none",
     )
@@ -336,12 +342,13 @@ def _timeouts(flows, min_rto_us):
 
 def timeout_caveat(flows):
     """A warning when these flows' small flows are larger than the 10 KB the timeout
-    inference assumes, or None."""
+    inference was designed for, or None."""
     largest = flows.loc[flows["small"] == 1, "bytes"].max()
     if largest > 10_000:
-        return (f"Timeouts are inferred from completion time, which assumes small flows finish within "
-                f"1 ms when nothing is lost. These small flows are up to {largest / 1000:g} KB and can "
-                f"take that long from queueing alone, so read the timeout rates as upper bounds.")
+        return (f"Timeouts are inferred from completion time: a data timeout needs at least 1 ms and a "
+                f"data retransmission, and a lost handshake at least 10 ms. These small flows are up to "
+                f"{largest / 1000:g} KB, so a few that were slow from queueing and had only a fast "
+                f"retransmit, or took 10 ms from queueing alone, may count as timeouts.")
     return None
 
 

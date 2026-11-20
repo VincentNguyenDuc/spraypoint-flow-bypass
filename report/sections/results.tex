@@ -18,7 +18,7 @@ Only a small share of small flows run between neighboring routers. We measure ho
 \subsection{H2 under uniform traffic}
 \label{sec:h2-uniform}
 
-We look for a cost to other traffic in every measure from \secref{sec:method}: large-flow goodput, link utilization and drops, the links the bypass loads most, and fan-in. \file{07-share-sweep} then raises the small flows' share of bytes $f$, at higher loads, to see whether a cost appears.
+We look for a cost to other traffic in every measure from \secref{sec:method}: large-flow goodput, link utilization and drops, the links the bypass loads most, and fan-in. \file{07-share-sweep} then raises the small flows' share of bytes $f$, at higher loads, to see whether a cost appears, and the workload sweeps (\appref{app:workloads}) push further: \file{08-small-fraction} and \file{09-small-size} raise $f$ to 50\%, and \file{10-websearch} and \file{11-hadoop} run published flow-size distributions at several small-flow cutoffs.
 
 \subsection{H2 under worst-case traffic: the crossover}
 \label{sec:h2-perm}

@@ -46,11 +46,11 @@ Experiment & Traffic & Network & What varies \\
 
 \subsection{Metrics}
 
-\paragraph{Small-flow latency.} The \textbf{median} completion time, the \textbf{timeout rate} (the share of small flows that waited for any retransmission or connection timeout, inferred from completion time; \appref{app:simulator}), and the \textbf{clean p99} (the p99 of flows that did not, which is queueing alone).
+\paragraph{Small-flow latency.} The \textbf{median} completion time, the \textbf{timeout rate} (the share of small flows that waited for any retransmission or connection timeout, inferred from completion time and retransmissions; \appref{app:simulator}), and the \textbf{clean p99} (the p99 of flows that did not, which is queueing alone).
 
 \paragraph{Cost to other traffic.} Each large flow's \textbf{goodput}, its bytes over its completion time: the mean and the slowest 1\%. Under permutation traffic, the \textbf{throughput kept} per router pair, its large-flow goodput with the bypass over the same pair's without it, and its minimum over pairs, the \textbf{worst pair}.
 
-\paragraph{Where load goes.} Link utilization and queue drops, and fan-in.
+\paragraph{Where load goes.} Link utilization, fan-in, and queue drops per port: in the fabric, and on each router's links to its hosts, so a cost can be traced to where packets are lost.
 
 \subsection{The flow-level checker}
 \label{sec:checker}
