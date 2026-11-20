@@ -1,7 +1,8 @@
 #include "tcp-experiment.h"
+#include "egress-port-tag.h"
+#include "traffic-pattern.h"
 
 #include "spraypoint/hash.h"
-#include "spraypoint/matching.h"
 
 #include "ns3/applications-module.h"
 #include "ns3/core-module.h"
@@ -29,6 +30,19 @@ namespace
 const uint32_t SEGMENT_BYTES = 1448; // 1500 MTU less IP, TCP, and timestamp headers
 const uint8_t INITIAL_TTL = 64;
 const uint32_t PATH_BUCKETS = 8; // fabric hops 0..6, then 7 or more
+
+TrafficPatternConfig
+PatternConfig(const TcpExperimentConfig& config)
+{
+    return {.pattern = config.pattern,
+            .permutationShift = config.permutationShift,
+            .hotspotHosts = config.hotspotHosts,
+            .hotspotFraction = config.hotspotFraction,
+            .incastDestination = config.incastDestination,
+            .incastFanIn = config.incastFanIn,
+            .routers = config.nodes,
+            .seed = config.seed};
+}
 
 double
 Percentile(std::vector<double> values, double quantile)
@@ -94,22 +108,15 @@ TcpExperiment::TcpExperiment(const TcpExperimentConfig& config)
     {
         throw std::runtime_error("set flows or spanMs to limit the workload");
     }
-    if (config.pattern != "uniform" && config.pattern != "permutation")
+    const TrafficPattern pattern(CheckedTrafficHostCount(config.nodes, config.hostsPerRouter),
+                                 PatternConfig(config));
+    if (config.spanMs == 0 && config.flows > pattern.MaximumFlows())
     {
-        throw std::runtime_error("unknown pattern " + config.pattern +
-                                 "; use uniform or permutation");
-    }
-    if (config.pattern == "permutation" && config.nodes < 2)
-    {
-        throw std::runtime_error("the permutation pattern needs at least two routers");
+        throw std::runtime_error("requested flows exceed the pattern's destination listener capacity");
     }
     if (config.linkGbps <= 0 || config.fabricQueuePackets == 0 || config.nicQueuePackets == 0)
     {
         throw std::runtime_error("link rate and queue sizes must be positive");
-    }
-    if (config.hostsPerRouter == 0 || config.nodes * config.hostsPerRouter < 2)
-    {
-        throw std::runtime_error("need at least two hosts");
     }
     if (config.load <= 0 || config.smallBytes == 0 || config.largeBytes == 0)
     {
@@ -182,6 +189,10 @@ TcpExperiment::BuildNetwork()
     stack.SetRoutingHelper(staticRouting);
     stack.Install(m_routers);
     stack.Install(m_hosts);
+    for (uint32_t host = 0; host < m_hosts.GetN(); ++host)
+    {
+        TcpDiagnosticsSocketFactory::Install(m_hosts.Get(host));
+    }
 
     PointToPointHelper link;
     link.SetDeviceAttribute(
@@ -266,11 +277,28 @@ TcpExperiment::ConnectPort(Ptr<NetDevice> device, PortKind kind, uint32_t from, 
 {
     const auto index = static_cast<uint32_t>(m_ports.size());
     m_ports.push_back(Port{.from = from, .to = to, .kind = kind});
+    if (kind == HOST_NIC)
+    {
+        if (m_hostPortIndices.size() <= from)
+        {
+            m_hostPortIndices.resize(from + 1);
+        }
+        m_hostPortIndices[from] = index;
+    }
+    else
+    {
+        if (m_routerPortIndices.size() <= from)
+        {
+            m_routerPortIndices.resize(from + 1);
+        }
+        m_routerPortIndices[from][device->GetIfIndex()] = index;
+    }
     auto p2p = DynamicCast<PointToPointNetDevice>(device);
     p2p->GetQueue()->TraceConnectWithoutContext(
         "PacketsInQueue",
         MakeCallback(&TcpExperiment::OnQueueLength, this).Bind(index));
-    p2p->TraceConnectWithoutContext("MacTxDrop", MakeCallback(&TcpExperiment::OnDeviceDrop, this));
+    p2p->TraceConnectWithoutContext("MacTxDrop",
+                                    MakeCallback(&TcpExperiment::OnDeviceDrop, this).Bind(index));
     if (kind == FABRIC)
     {
         p2p->TraceConnectWithoutContext("PhyTxEnd",
@@ -288,7 +316,7 @@ TcpExperiment::ConnectNodeTraces()
         {
             nodes.Get(i)->GetObject<TrafficControlLayer>()->TraceConnectWithoutContext(
                 "TcDrop",
-                MakeCallback(&TcpExperiment::OnTcDrop, this).Bind(atRouter));
+                MakeCallback(&TcpExperiment::OnTcDrop, this).Bind(atRouter, i));
             nodes.Get(i)->GetObject<Ipv4L3Protocol>()->TraceConnectWithoutContext(
                 "Drop",
                 MakeCallback(&TcpExperiment::OnIpDrop, this));
@@ -323,25 +351,14 @@ TcpExperiment::GenerateFlows()
     const double meanBytes = m_flowSizes ? m_flowSizes->Mean()
                                          : m_config.smallFraction * m_config.smallBytes +
                                                (1 - m_config.smallFraction) * m_config.largeBytes;
-    const double capacityBytesPerSecond = hosts * m_config.linkGbps * 1e9 / 8;
-    const double arrivalsPerSecond = m_config.load * capacityBytesPerSecond / meanBytes;
+    const double arrivalsPerSecond = TrafficArrivalRate(hosts, m_config.linkGbps, m_config.load, meanBytes);
 
     std::mt19937_64 rng(Key(m_config.seed, 0xf10, 0xb07));
-    std::uniform_int_distribution<uint32_t> pickHost(0, hosts - 1);
+    TrafficPattern pattern(hosts, PatternConfig(m_config));
     std::uniform_real_distribution<double> uniform(0.0, 1.0);
     std::exponential_distribution<double> gap(arrivalsPerSecond);
 
-    // The permutation pattern sends from each router only to its partner, the same
-    // partner as matching 0 of the flow-level check (test/bypass-model).  The uniform
-    // pattern draws nothing extra, so its flows are unchanged.
-    std::vector<uint32_t> partner;
-    if (m_config.pattern == "permutation")
-    {
-        partner = RandomMatching(m_config.nodes, m_config.seed + 1000);
-    }
-    std::uniform_int_distribution<uint32_t> pickLocalHost(0, m_config.hostsPerRouter - 1);
-
-    std::vector<uint32_t> nextPort(hosts, 10000); // by destination host
+    TrafficListenerPorts ports(hosts);
     double now = 0;
     for (uint32_t index = 0; m_config.flows == 0 || index < m_config.flows; ++index)
     {
@@ -351,20 +368,9 @@ TcpExperiment::GenerateFlows()
             break;
         }
         Flow flow;
-        flow.sourceHost = pickHost(rng);
-        if (partner.empty())
-        {
-            do
-            {
-                flow.destinationHost = pickHost(rng);
-            } while (flow.destinationHost == flow.sourceHost);
-        }
-        else
-        {
-            flow.destinationHost =
-                partner[RouterOfHost(flow.sourceHost)] * m_config.hostsPerRouter +
-                pickLocalHost(rng);
-        }
+        const auto pair = pattern.Select(rng);
+        flow.sourceHost = pair.sourceHost;
+        flow.destinationHost = pair.destinationHost;
         const double sizeDraw = uniform(rng);
         if (m_flowSizes)
         {
@@ -380,12 +386,7 @@ TcpExperiment::GenerateFlows()
 
         // One listener per flow identifies the flow on receipt, and gives each
         // flow its own 5-tuple to hash.
-        const auto port = nextPort[flow.destinationHost]++;
-        if (port == 0xffff)
-        {
-            throw std::runtime_error("too many flows to one host");
-        }
-        flow.port = static_cast<uint16_t>(port);
+        flow.port = ports.Allocate(flow.destinationHost);
         m_flows.push_back(flow);
     }
     if (m_flows.empty())
@@ -407,7 +408,7 @@ TcpExperiment::StartFlow(uint32_t index)
         SpraypointRouting::HostAddress(RouterOfHost(flow.destinationHost),
                                        flow.destinationHost % m_config.hostsPerRouter);
 
-    PacketSinkHelper sinkHelper("ns3::TcpSocketFactory",
+    PacketSinkHelper sinkHelper("rng::TcpDiagnosticsSocketFactory",
                                 InetSocketAddress(Ipv4Address::GetAny(), flow.port));
     sinkHelper.SetAttribute("Tos", UintegerValue(tos));
     auto sink = sinkHelper.Install(m_hosts.Get(flow.destinationHost));
@@ -415,7 +416,7 @@ TcpExperiment::StartFlow(uint32_t index)
         "RxWithAddresses",
         MakeCallback(&TcpExperiment::OnSinkRx, this).Bind(index));
 
-    BulkSendHelper sourceHelper("ns3::TcpSocketFactory", InetSocketAddress(destination, flow.port));
+    BulkSendHelper sourceHelper("rng::TcpDiagnosticsSocketFactory", InetSocketAddress(destination, flow.port));
     sourceHelper.SetAttribute("MaxBytes", UintegerValue(flow.bytes));
     sourceHelper.SetAttribute("SendSize", UintegerValue(SEGMENT_BYTES));
     sourceHelper.SetAttribute("Tos", UintegerValue(tos));
@@ -424,13 +425,10 @@ TcpExperiment::StartFlow(uint32_t index)
     m_active[index] = ActiveFlow{DynamicCast<PacketSink>(sink.Get(0)),
                                  DynamicCast<BulkSendApplication>(source.Get(0))};
 
-    if (flow.small)
-    {
-        // PacketSink marks a socket only once the handshake completes, so the
-        // SYN-ACK would go out unmarked.  The sink starts in this time step, and
-        // no SYN can arrive before the next nanosecond.
-        Simulator::Schedule(NanoSeconds(1), &TcpExperiment::MarkListener, this, index);
-    }
+    // Factories already observe the first SYN and listener forks. Capture their
+    // counters after the applications start, retaining the existing early mark
+    // for small-flow SYN-ACKs before they cross the configured links.
+    Simulator::Schedule(NanoSeconds(1), &TcpExperiment::AttachFlowDiagnostics, this, index);
     if (index + 1 < m_flows.size())
     {
         Simulator::Schedule(m_flows[index + 1].start - Simulator::Now(),
@@ -441,9 +439,20 @@ TcpExperiment::StartFlow(uint32_t index)
 }
 
 void
-TcpExperiment::MarkListener(uint32_t index) const
+TcpExperiment::AttachFlowDiagnostics(uint32_t index)
 {
-    m_active.at(index).sink->GetListeningSocket()->SetIpTos(SpraypointRouting::SMALL_FLOW_TOS);
+    const auto active = m_active.find(index);
+    if (active == m_active.end())
+    {
+        return;
+    }
+    auto& flow = m_flows[index];
+    flow.senderDiagnostics = GetTcpDiagnostics(active->second.source->GetSocket());
+    flow.receiverDiagnostics = GetTcpDiagnostics(active->second.sink->GetListeningSocket());
+    if (flow.small)
+    {
+        active->second.sink->GetListeningSocket()->SetIpTos(SpraypointRouting::SMALL_FLOW_TOS);
+    }
 }
 
 void
@@ -482,6 +491,10 @@ TcpExperiment::OnSinkRx(uint32_t index, Ptr<const Packet> packet, const Address&
     flow.received += packet->GetSize();
     if (flow.received >= flow.bytes && flow.finish.IsZero())
     {
+        // Also covers completion before the scheduled pointer-capture callback.
+        AttachFlowDiagnostics(index);
+        flow.senderDiagnostics->Stop();
+        flow.receiverDiagnostics->Stop();
         flow.finish = Simulator::Now();
         if (++m_completed == m_flows.size())
         {
@@ -554,15 +567,33 @@ TcpExperiment::RecordArrivalWindow()
 }
 
 void
-TcpExperiment::OnTcDrop(bool atRouter, Ptr<const Packet>)
+TcpExperiment::OnTcDrop(bool atRouter, uint32_t node, Ptr<const Packet> packet)
 {
     ++(atRouter ? m_routerDrops : m_hostDrops);
+    if (!atRouter)
+    {
+        ++m_ports.at(m_hostPortIndices.at(node)).queueDrops;
+        return;
+    }
+    EgressPortTag tag;
+    if (packet->PeekPacketTag(tag) && tag.router == node)
+    {
+        const auto& ports = m_routerPortIndices.at(node);
+        const auto port = ports.find(tag.device);
+        if (port != ports.end())
+        {
+            ++m_ports[port->second].queueDrops;
+            return;
+        }
+    }
+    ++m_unattributedRouterDrops;
 }
 
 void
-TcpExperiment::OnDeviceDrop(Ptr<const Packet>)
+TcpExperiment::OnDeviceDrop(uint32_t port, Ptr<const Packet>)
 {
     ++m_deviceDrops;
+    ++m_ports.at(port).deviceDrops;
 }
 
 void
@@ -639,6 +670,11 @@ TcpExperiment::PrintResults(std::ostream& out) const
         << " small-fraction=" << m_config.smallFraction << " min-rto-us=" << m_config.minRtoUs
         << " seed=" << m_config.seed << "\n"
         << "settings pattern=" << m_config.pattern << " span-ms=" << m_config.spanMs
+        << " permutation-shift=" << m_config.permutationShift
+        << " hotspot-hosts=" << m_config.hotspotHosts
+        << " hotspot-fraction=" << m_config.hotspotFraction
+        << " incast-destination=" << m_config.incastDestination
+        << " incast-fan-in=" << m_config.incastFanIn
         << " flow-size-cdf=" << (m_config.flowSizeCdf.empty() ? "none" : m_config.flowSizeCdf)
         << " small-threshold=" << m_smallThreshold << " link-gbps=" << m_config.linkGbps
         << " link-delay-ns=" << m_config.linkDelayNs
@@ -661,7 +697,8 @@ TcpExperiment::PrintResults(std::ostream& out) const
         << " host_nic=" << m_maxQueue[HOST_NIC] << "\n"
         << "drops router_queue=" << m_routerDrops << " host_queue=" << m_hostDrops
         << " device=" << m_deviceDrops << " ttl=" << m_ttlDrops << " no_route=" << m_noRouteDrops
-        << " other_ip=" << m_otherIpDrops << "\n";
+        << " other_ip=" << m_otherIpDrops << " unattributed_router_queue="
+        << m_unattributedRouterDrops << "\n";
 }
 
 void
@@ -687,7 +724,10 @@ void
 TcpExperiment::WriteFlows(const std::string& path) const
 {
     std::ofstream file(path);
-    file << "flow,source_router,destination_router,adjacent,small,bytes,start_ns,finish_ns\n";
+    file << "flow,source_router,destination_router,adjacent,small,bytes,start_ns,finish_ns,"
+            "data_retransmissions,syn_retransmissions,syn_ack_retransmissions,"
+            "data_rto_timeouts,data_rto_retransmissions,data_fast_recovery_retransmissions,"
+            "data_other_retransmissions,handshake_timeouts\n";
     for (size_t index = 0; index < m_flows.size(); ++index)
     {
         const auto& flow = m_flows[index];
@@ -699,7 +739,24 @@ TcpExperiment::WriteFlows(const std::string& path) const
         {
             file << flow.finish.GetNanoSeconds();
         }
-        file << "\n";
+        const auto* sender = flow.senderDiagnostics ? &flow.senderDiagnostics->Counts() : nullptr;
+        const auto* receiver = flow.receiverDiagnostics ? &flow.receiverDiagnostics->Counts() : nullptr;
+        const auto append = [&file](const TcpDiagnosticCounts* counts,
+                                    uint64_t TcpDiagnosticCounts::* member) {
+            file << ",";
+            if (counts)
+            {
+                file << (counts->*member);
+            }
+        };
+        append(sender, &TcpDiagnosticCounts::dataRetransmissions);
+        append(sender, &TcpDiagnosticCounts::synRetransmissions);
+        append(receiver, &TcpDiagnosticCounts::synAckRetransmissions);
+        append(sender, &TcpDiagnosticCounts::dataRtoTimeouts);
+        append(sender, &TcpDiagnosticCounts::dataRtoRetransmissions);
+        append(sender, &TcpDiagnosticCounts::dataFastRecoveryRetransmissions);
+        append(sender, &TcpDiagnosticCounts::dataOtherRetransmissions);
+        file << ",\n"; // Handshake timer expirations are not observable here.
     }
     if (!file.flush())
     {
@@ -713,19 +770,19 @@ TcpExperiment::WriteLinks(const std::string& path) const
     std::ofstream file(path);
     file << "from,to,sent_small_bytes,sent_large_bytes,sent_bytes_during_arrivals,"
             "delivered_small_bytes,delivered_large_bytes,max_queue_packets,"
-            "mean_queue_packets_during_arrivals\n";
+            "mean_queue_packets_during_arrivals,port_kind,queue_drops,device_drops\n";
     const double arrivalSeconds = m_flows.back().start.GetSeconds();
     for (const auto& port : m_ports)
     {
-        if (port.kind != FABRIC)
-        {
-            continue;
-        }
-        const auto& arrivals = m_routing[port.to]->GetArrivals(port.from);
+        const auto arrivals = port.kind == FABRIC ? m_routing[port.to]->GetArrivals(port.from)
+                                                  : SpraypointRouting::LinkCounters{};
+        const char* kind =
+            port.kind == FABRIC ? "fabric" : port.kind == DOWNLINK ? "downlink" : "host_nic";
         file << port.from << "," << port.to << "," << port.sentSmall << "," << port.sentLarge << ","
              << port.sentDuringArrivals << "," << arrivals.deliveredSmall << ","
              << arrivals.deliveredLarge << "," << port.maxLength << ","
-             << port.packetSecondsDuringArrivals / arrivalSeconds << "\n";
+             << port.packetSecondsDuringArrivals / arrivalSeconds << "," << kind << ","
+             << port.queueDrops << "," << port.deviceDrops << "\n";
     }
     if (!file.flush())
     {

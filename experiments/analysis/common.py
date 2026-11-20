@@ -428,6 +428,9 @@ def load_links(runs):
     frames = []
     for run in runs:
         links = pd.read_csv(run.path / "links.csv")
+        # Newer files also include host-facing ports; older files contain fabric only.
+        if "port_kind" in links.columns:
+            links = links[links["port_kind"] == "fabric"].copy()
         last_start_ns = pd.read_csv(run.path / "flows.csv", usecols=["start_ns"])["start_ns"].max()
         capacity_bytes = run.summary["link_gbps"] * 1e9 / 8 * last_start_ns * 1e-9
         links["utilization"] = links["sent_bytes_during_arrivals"] / capacity_bytes

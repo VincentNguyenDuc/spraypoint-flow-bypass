@@ -5,5 +5,5 @@
 # hosts per router, fabric utilization is roughly equal to the load.
 NETWORK=(--nodes=256 --degree=16 --waypoints=4 --nextHops=2 --hostsPerRouter=4)
 WORKLOAD=(--flows=0 --spanMs=4 --releaseDelayUs=1000)
-LOADS=(0.1 0.3 0.5)
+LOADS=(0.1 0.3 0.5 0.7 0.9)
 SEEDS=(561 562 563)

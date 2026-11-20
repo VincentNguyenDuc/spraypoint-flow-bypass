@@ -3,6 +3,7 @@
 
 #include "flow-size-cdf.h"
 #include "spraypoint-routing.h"
+#include "tcp-diagnostics.h"
 #include "spraypoint/spraypoint.h"
 
 #include "ns3/address.h"
@@ -17,6 +18,7 @@
 #include "ns3/ptr.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -38,6 +40,11 @@ struct TcpExperimentConfig
     double spanMs{0};      // stop generating after this much simulated time; 0 means no limit
     double load{0.1};      // offered load as a fraction of total host link capacity
     std::string pattern{"uniform"};
+    uint32_t permutationShift{1};
+    uint32_t hotspotHosts{1};
+    double hotspotFraction{0.9};
+    uint32_t incastDestination{0};
+    uint32_t incastFanIn{0};
     uint32_t smallBytes{10000};
     uint32_t largeBytes{1000000};
     double smallFraction{0.9};  // fraction of flows, not of bytes, that are small
@@ -97,6 +104,8 @@ class TcpExperiment
         ns3::Time start;
         uint32_t received{0};
         ns3::Time finish;
+        std::shared_ptr<TcpDiagnostics> senderDiagnostics;
+        std::shared_ptr<TcpDiagnostics> receiverDiagnostics;
     };
 
     // The applications of a flow that has started and has not been released.
@@ -122,6 +131,8 @@ class TcpExperiment
         // be measured over the time the network carries the offered load.
         uint64_t sentDuringArrivals{0};
         double packetSecondsDuringArrivals{0};
+        uint64_t queueDrops{0};
+        uint64_t deviceDrops{0};
     };
 
     void ConfigureTcp() const;
@@ -130,7 +141,7 @@ class TcpExperiment
     void ConnectNodeTraces();
     void GenerateFlows();
     void StartFlow(uint32_t flow);
-    void MarkListener(uint32_t flow) const;
+    void AttachFlowDiagnostics(uint32_t flow);
     void ReleaseFlow(uint32_t flow);
     uint32_t RouterOfHost(uint32_t host) const;
     bool IsAdjacentFlow(const Flow& flow) const;
@@ -142,8 +153,8 @@ class TcpExperiment
     void OnQueueLength(uint32_t port, uint32_t, uint32_t length);
     void OnPortSent(uint32_t port, ns3::Ptr<const ns3::Packet> packet);
     void RecordArrivalWindow();
-    void OnTcDrop(bool atRouter, ns3::Ptr<const ns3::Packet>);
-    void OnDeviceDrop(ns3::Ptr<const ns3::Packet>);
+    void OnTcDrop(bool atRouter, uint32_t node, ns3::Ptr<const ns3::Packet>);
+    void OnDeviceDrop(uint32_t port, ns3::Ptr<const ns3::Packet>);
     void OnIpDrop(const ns3::Ipv4Header&,
                   ns3::Ptr<const ns3::Packet>,
                   ns3::Ipv4L3Protocol::DropReason reason,
@@ -166,6 +177,9 @@ class TcpExperiment
     uint32_t m_completed{0};
     std::vector<uint64_t> m_pathLengths[PATH_CLASSES];
     std::vector<Port> m_ports;
+    std::vector<std::unordered_map<uint32_t, uint32_t>> m_routerPortIndices;
+    std::vector<uint32_t> m_hostPortIndices;
+    uint64_t m_unattributedRouterDrops{0};
     uint32_t m_maxQueue[PORT_KINDS]{};
     uint64_t m_routerDrops{0};
     uint64_t m_hostDrops{0};

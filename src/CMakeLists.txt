@@ -10,15 +10,20 @@ target_link_libraries(flow-size-cdf PRIVATE project_warnings)
 add_library(shortest-paths STATIC tcp-bypass/shortest-paths.cc)
 target_link_libraries(shortest-paths PUBLIC spraypoint PRIVATE project_warnings)
 
+add_library(traffic-pattern STATIC tcp/traffic-pattern.cc)
+target_include_directories(traffic-pattern PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(traffic-pattern PRIVATE spraypoint project_warnings)
+
 include(${PROJECT_SOURCE_DIR}/cmake/Ns3.cmake)
 
 # Shared by every program built on the TCP experiment.
-add_library(tcp STATIC tcp/tcp-experiment.cc tcp/spraypoint-routing.cc tcp/tcp-options.cc)
+add_library(tcp STATIC tcp/tcp-experiment.cc tcp/spraypoint-routing.cc tcp/tcp-options.cc tcp/tcp-diagnostics.cc)
 target_link_libraries(
   tcp
   PUBLIC
     spraypoint
     flow-size-cdf
+    traffic-pattern
     ns3::core
     ns3::network
     ns3::point-to-point

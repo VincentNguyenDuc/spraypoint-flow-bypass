@@ -33,8 +33,11 @@ experiments/01-smoke-baseline.sh
 experiments/01-smoke-bypass.sh
 experiments/02-small-sweep-baseline.sh
 experiments/02-small-sweep-bypass.sh
-experiments/03-load-sweep-baseline.sh
-experiments/03-load-sweep-bypass.sh
+# With H2 enabled, its scheduler also runs the main load sweep.
+if [[ ${RUN_H2:-0} != 1 ]]; then
+    experiments/03-load-sweep-baseline.sh
+    experiments/03-load-sweep-bypass.sh
+fi
 # The 8-host and load-0.7 runs need 6-8 GB each, so at most 4 run at once.
 BIG_JOBS=$((${JOBS:-1} < 4 ? ${JOBS:-1} : 4))
 JOBS=$BIG_JOBS experiments/04-oversubscription-baseline.sh
@@ -46,11 +49,18 @@ experiments/06-permutation-bypass.sh
 JOBS=$BIG_JOBS experiments/07-share-sweep-baseline.sh
 JOBS=$BIG_JOBS experiments/07-share-sweep-bypass.sh
 
-step "Analysis"
 if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then
     python3 -m venv experiments/analysis/.venv
     experiments/analysis/.venv/bin/pip install --quiet -r experiments/analysis/requirements.txt
 fi
+
+if [[ ${RUN_H2:-0} == 1 ]]; then
+    step "H2 workload sweep"
+    bash experiments/run-h2.sh
+fi
+
+step "Analysis"
+# H2 CDF workloads use h2-report.py for analysis.
 # run_notebook <sweep> <notebook>: executes a notebook on one sweep of this batch.
 run_notebook() {
     RESULTS_DIR=$BATCH_DIR SWEEP=$1 experiments/analysis/.venv/bin/jupyter nbconvert \

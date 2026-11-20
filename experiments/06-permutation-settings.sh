@@ -13,7 +13,7 @@
 # gives 30%.  These straddle the model's knees at about 10% (shortest) and 20%
 # (adjacent) on this network.
 NETWORK=(--nodes=256 --degree=16 --waypoints=4 --nextHops=2 --hostsPerRouter=4)
-WORKLOAD=(--flows=0 --spanMs=4 --releaseDelayUs=1000 --pattern=permutation)
+WORKLOAD=(--flows=0 --spanMs=4 --releaseDelayUs=1000 --pattern=router-permutation)
 SMALL_BYTES=(10000 27778 47619)
 LOADS=(0.1 0.2 0.3 0.4)
 SEEDS=(561 562 563)
