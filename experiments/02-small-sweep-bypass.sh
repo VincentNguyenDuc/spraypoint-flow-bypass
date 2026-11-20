@@ -5,7 +5,7 @@ PROGRAM_NAME=tcp-bypass
 source "$(dirname "$0")/common.sh"
 source "$ROOT/experiments/02-small-sweep-settings.sh"
 
-for bypass in adjacent shortest; do
+for bypass in shortest; do
     for seed in "${SEEDS[@]}"; do
         for load in "${LOADS[@]}"; do
             run_experiment "${bypass}_load-${load}_seed-$seed" "${NETWORK[@]}" "${WORKLOAD[@]}" \

@@ -212,10 +212,10 @@ class PlanTests(unittest.TestCase):
                 mock.patch.object(queue.Path, "read_text", return_value="200000 100000"):
             self.assertEqual(queue.default_jobs(), 2)
 
-    def test_plan_has_exactly_315_unique_runs(self):
+    def test_plan_has_exactly_210_unique_runs(self):
         tasks = queue.make_plan(ROOT)
-        self.assertEqual(len(tasks), 315)
-        self.assertEqual(len({task.key for task in tasks}), 315)
+        self.assertEqual(len(tasks), 210)
+        self.assertEqual(len({task.key for task in tasks}), 210)
         self.assertEqual(sum(t.program == "tcp-experiment" for t in tasks), 105)
         heavy = next(t for t in tasks if t.experiment == "04-h2-fraction99-baseline" and "--load=0.7" in t.args)
         self.assertGreater(heavy.memory_gb, 30)
@@ -233,7 +233,7 @@ class PlanTests(unittest.TestCase):
                 shutil.copy2(ROOT / filename, path)
             (source / "experiments/common.sh").write_text("echo 'must not be sourced' >&2; exit 99\n")
             tasks = queue.make_plan(source)
-            self.assertEqual(len(tasks), 315)
+            self.assertEqual(len(tasks), 210)
             self.assertFalse((source / "experiments/results").exists())
 
 

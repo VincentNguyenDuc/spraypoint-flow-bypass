@@ -38,14 +38,11 @@ For the repository workloads, the approximate expected byte coverage is:
 | Hadoop | 0.48% | 7.91% | 31.49% |
 
 Even the 1 MB WebSearch cutoff moves only about 5% of bytes into the small class.
-This is context for interpreting H2, not proof that hotspots cannot occur. The
-adjacent bypass affects only the subset between neighboring routers; destination
-concentration and actual routed paths matter as well.
+This is context for interpreting H2, not proof that hotspots cannot occur;
+destination concentration and actual routed paths matter as well.
 
-Use the [H3 report](H3_REPORT.md) to describe measured routing tradeoffs after
-matching modes. Cutoffs change the small/large populations, so the tool does not
-claim an optimal threshold by comparing their incomparable small-class p99s.
-A cross-cutoff optimization needs a fixed target population and a chosen latency
+Cutoffs change the small/large populations, so their small-class p99s are not
+comparable with each other. A cross-cutoff optimization needs a fixed target population and a chosen latency
 and throughput objective, plus uncertainty analysis.
 
 ```sh

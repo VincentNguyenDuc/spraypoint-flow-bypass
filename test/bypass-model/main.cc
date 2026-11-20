@@ -332,21 +332,15 @@ main(int argc, char* argv[])
             }
         }
 
-        // Steps 6 and 7: one task per matching, bypass mode and share; share 0 is the
-        // baseline, shared by both modes.
+        // Steps 6 and 7: one task per matching and share, with the shortest-path bypass;
+        // share 0 is the baseline.
         std::vector<Task> tasks;
         for (uint32_t k = 0; k < options.matchings; ++k)
         {
-            for (auto mode : {rng::BypassMode::ADJACENT, rng::BypassMode::SHORTEST})
+            for (auto share : options.shares)
             {
-                for (auto share : options.shares)
-                {
-                    if (share == 0 && mode == rng::BypassMode::SHORTEST)
-                    {
-                        continue;
-                    }
-                    tasks.push_back({k, {share == 0 ? rng::BypassMode::NONE : mode, share}});
-                }
+                const auto mode = share == 0 ? rng::BypassMode::NONE : rng::BypassMode::SHORTEST;
+                tasks.push_back({k, {mode, share}});
             }
         }
         std::vector<std::vector<uint32_t>> matchings(options.matchings);

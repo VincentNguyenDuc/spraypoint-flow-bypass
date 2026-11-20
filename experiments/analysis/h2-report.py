@@ -137,7 +137,7 @@ def report(batch):
     partial = list(batch.glob("*-*/**/*.partial"))
     failed = list(batch.glob("*-*/**/*.failed"))
     lines = ["# H2 evaluation", "", f"Batch: `{batch.name}`.", "",
-             f"Finished: **{len(seen)}/315**. Pending: **{len(pending)}**. Failed directories: **{len(failed)}**.", "",
+             f"Finished: **{len(seen)}/{len(expected_keys())}**. Pending: **{len(pending)}**. Failed directories: **{len(failed)}**.", "",
              "Results below use the middle 80% of flow arrivals. FCT is raw, without inferred timeout filtering. "
              "Data retransmissions exclude handshakes. Link utilization covers the arrival window; queue/drop "
              "counts cover the full simulation. Every completed run passed routing and per-port drop reconciliation.", "",
@@ -181,7 +181,7 @@ def report(batch):
         lines += ["", "Failed run directories: " + ", ".join(f"`{p.relative_to(batch)}`" for p in failed)]
     destination = out / "H2.md"
     destination.write_text("\n".join(lines) + "\n")
-    print(f"H2: {len(seen)}/315 runs; report: {destination}")
+    print(f"H2: {len(seen)}/{len(expected_keys())} runs; report: {destination}")
 
 
 if __name__ == "__main__":

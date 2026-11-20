@@ -39,7 +39,8 @@ if scales:
     checks["lp_r"] = (checks["lp_lower"] + checks["lp_upper"]) / 2
     keys = ["nodes", "degree", "seed", "matching"]
     baseline = checks[checks["mode"] == "none"].set_index(keys)[["ecmp_r", "lp_r", "model_ideal"]].add_suffix("_none")
-    checks = checks[checks["mode"] != "none"].join(baseline, on=keys)
+    # Older batches also checked the adjacent bypass; only the shortest-path bypass is analyzed.
+    checks = checks[checks["mode"] == "shortest"].join(baseline, on=keys)
     checks["ecmp_kept"] = checks["ecmp_r_none"] / checks["ecmp_r"]
     checks["lp_kept"] = checks["lp_r_none"] / checks["lp_r"]
     checks["model_ecmp_kept"] = checks["ecmp_r_none"] / (
@@ -62,17 +63,11 @@ if scales:
     for axis, (nodes, degree) in zip(axes, scales):
         rows = checks[(checks["nodes"] == nodes) & (checks["degree"] == degree)]
         mean = rows.groupby(["mode", "share"])[["ecmp_kept", "lp_kept", "model_ecmp_kept", "model_ideal_kept"]].mean()
-        present = mean.index.get_level_values("mode")
-        for mode in ["adjacent", "shortest"]:
-            if mode not in present:
-                continue
-            data = mean.xs(mode, level="mode")
-            color = common.MODE_COLORS[mode]
-            axis.plot(data.index * 100, data["ecmp_kept"] * 100, color=color, marker=common.MODE_MARKERS[mode],
-                      label=f"{common.MODE_NAMES[mode]}, ECMP")
-            axis.plot(data.index * 100, data["lp_kept"] * 100, color=color, linestyle="--",
-                      label=f"{common.MODE_NAMES[mode]}, best split")
-        data = mean.xs("adjacent", level="mode") if "adjacent" in present else mean.groupby("share").mean()
+        data = mean.xs("shortest", level="mode")
+        color = common.MODE_COLORS["shortest"]
+        axis.plot(data.index * 100, data["ecmp_kept"] * 100, color=color, marker=common.MODE_MARKERS["shortest"],
+                  label="ECMP")
+        axis.plot(data.index * 100, data["lp_kept"] * 100, color=color, linestyle="--", label="Best split")
         axis.plot(data.index * 100, data["model_ecmp_kept"] * 100, color="#52514e", linewidth=1, label="ECMP model")
         axis.plot(data.index * 100, data["model_ideal_kept"] * 100, color="#52514e", linewidth=1, linestyle=":",
                   label="Ideal model")
@@ -111,13 +106,13 @@ modes = [m for m in common.MODES if m in {r.bypass for r in runs}]
 flows = common.load_flows(runs)
 out.text(f"Comparing {len(complete)} setting and seed pairs, modes {modes}.")
 
-KINDS = ["adjacent (c = 1)", "2 hops, c = 1", "2 hops, c = 2", "2 hops, c ≥ 3", "3+ hops"]
+KINDS = ["neighbors (c = 1)", "2 hops, c = 1", "2 hops, c = 2", "2 hops, c ≥ 3", "3+ hops"]
 KIND_COLORS = ["#e34a33", "#fc8d59", "#91bfdb", "#4575b4", "#52514e"]
 
 
 def pair_kind(distance, c):
     if distance == 1:
-        return "adjacent (c = 1)"
+        return "neighbors (c = 1)"
     if distance == 2:
         return "2 hops, c = 1" if c == 1 else ("2 hops, c = 2" if c == 2 else "2 hops, c ≥ 3")
     return "3+ hops"

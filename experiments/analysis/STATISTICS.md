@@ -34,7 +34,7 @@ This example restricts the work to one scenario/load and one comparison:
 python3 experiments/analysis/bootstrap.py \
   --batch /path/to/completed-h2-batch \
   --output /tmp/h2-statistics-pooled \
-  --scenario default --load 0.5 --mode adjacent --class small \
+  --scenario default --load 0.5 --mode shortest --class small \
   --estimand pooled-p99 --expected-seeds 561 562 563
 ```
 

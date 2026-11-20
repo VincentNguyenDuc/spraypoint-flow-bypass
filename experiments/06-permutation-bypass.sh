@@ -5,7 +5,7 @@ PROGRAM_NAME=tcp-bypass
 source "$(dirname "$0")/common.sh"
 source "$ROOT/experiments/06-permutation-settings.sh"
 
-for bypass in adjacent shortest; do
+for bypass in shortest; do
     for seed in "${SEEDS[@]}"; do
         for small in "${SMALL_BYTES[@]}"; do
             for load in "${LOADS[@]}"; do

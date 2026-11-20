@@ -29,11 +29,11 @@ def run(seed, mode, values, topology=None, **kwargs):
 
 def paired(values=(10, 20, 80), scale=2):
     return [run(seed, mode, [value * factor]) for seed, value in enumerate(values, 1)
-            for mode, factor in (("none", 1), ("adjacent", scale))]
+            for mode, factor in (("none", 1), ("shortest", scale))]
 
 
 def analyze(runs, **kwargs):
-    return bootstrap.analyze(runs, modes=("adjacent",), replicates=300, **kwargs)
+    return bootstrap.analyze(runs, modes=("shortest",), replicates=300, **kwargs)
 
 
 class BootstrapTests(unittest.TestCase):
@@ -46,8 +46,8 @@ class BootstrapTests(unittest.TestCase):
         self.assertGreater(rows[0]["ci_high"], rows[0]["ci_low"])
 
     def test_ratio_of_means_is_not_mean_of_ratios(self):
-        runs = [run(1, "none", [1]), run(1, "adjacent", [2]),
-                run(2, "none", [10]), run(2, "adjacent", [10])]
+        runs = [run(1, "none", [1]), run(1, "shortest", [2]),
+                run(2, "none", [10]), run(2, "shortest", [10])]
         rows, _ = analyze(runs)
         self.assertAlmostEqual(rows[2]["estimate"], 12 / 11)
         self.assertNotAlmostEqual(rows[2]["estimate"], 1.5)
@@ -73,7 +73,7 @@ class BootstrapTests(unittest.TestCase):
 
     def test_repeated_runs_share_seed_cluster_and_are_run_weighted(self):
         runs = paired(values=(2, 8))
-        runs.extend([run(1, "none", [20], run_id="repeat"), run(1, "adjacent", [40], run_id="repeat")])
+        runs.extend([run(1, "none", [20], run_id="repeat"), run(1, "shortest", [40], run_id="repeat")])
         rows, _ = analyze(runs)
         self.assertEqual(rows[0]["clusters"], 2)
         self.assertEqual(rows[0]["paired_runs"], 3)
@@ -83,7 +83,7 @@ class BootstrapTests(unittest.TestCase):
     def test_shared_topology_transitively_merges_seeds_across_conditions(self):
         runs = paired()
         extra = [run(1, "none", [30], topology="topology-2"),
-                 run(1, "adjacent", [60], topology="topology-2")]
+                 run(1, "shortest", [60], topology="topology-2")]
         for item in extra:
             item.load = .7
         runs += extra
@@ -98,7 +98,7 @@ class BootstrapTests(unittest.TestCase):
             analyze(runs)
         rows, metadata = analyze(runs, allow_incomplete=True)
         self.assertEqual(rows[0]["paired_runs"], 2)
-        self.assertEqual(metadata["excluded_pairs"][0]["missing_modes"], ["adjacent"])
+        self.assertEqual(metadata["excluded_pairs"][0]["missing_modes"], ["shortest"])
         with self.assertRaisesRegex(ValueError, "Incomplete pairing"):
             analyze(paired(), expected_seeds=[1, 2, 3, 4])
 
@@ -114,8 +114,8 @@ class BootstrapTests(unittest.TestCase):
                     analyze(runs, allow_incomplete=True)
 
     def test_pooled_and_mean_run_estimands_differ(self):
-        runs = [run(1, "none", [1] * 100), run(1, "adjacent", [2] * 100),
-                run(2, "none", [100]), run(2, "adjacent", [200])]
+        runs = [run(1, "none", [1] * 100), run(1, "shortest", [2] * 100),
+                run(2, "none", [100]), run(2, "shortest", [200])]
         mean, _ = analyze(runs)
         pooled, _ = analyze(runs, estimand="pooled-p99")
         self.assertEqual(mean[0]["estimate"], 50.5)
@@ -141,8 +141,8 @@ class BootstrapTests(unittest.TestCase):
         self.assertTrue(math.isnan(bootstrap.ratio(1, 0)))
 
     def test_undefined_draws_are_not_discarded_even_if_point_is_defined(self):
-        runs = [run(1, "none", [0]), run(1, "adjacent", [1]),
-                run(2, "none", [2]), run(2, "adjacent", [2])]
+        runs = [run(1, "none", [0]), run(1, "shortest", [1]),
+                run(2, "none", [2]), run(2, "shortest", [2])]
         rows, _ = analyze(runs)
         self.assertEqual(rows[2]["estimate"], 1.5)
         self.assertTrue(math.isnan(rows[2]["ci_low"]))
@@ -197,7 +197,7 @@ class InputTests(unittest.TestCase):
 
     def test_raw_trimming_unfinished_and_non_timeout_filtering(self):
         self.raw_run()
-        self.raw_run("adjacent")
+        self.raw_run("shortest")
         partial = self.raw_run("none", seed=2, suffix=".partial")
         failed = self.raw_run("none", seed=3, suffix=".failed")
         runs, metadata = bootstrap.load_batch(self.root / "batch", ["small"])
@@ -238,7 +238,7 @@ class InputTests(unittest.TestCase):
 
     def test_raw_reordered_flows_still_pair_and_config_mismatches_fail(self):
         self.raw_run()
-        other = self.raw_run("adjacent")
+        other = self.raw_run("shortest")
         lines = (other / "flows.csv").read_text().splitlines()
         (other / "flows.csv").write_text("\n".join([lines[0], *reversed(lines[1:])]) + "\n")
         runs, _ = bootstrap.load_batch(self.root / "batch", ["small"])
@@ -251,7 +251,7 @@ class InputTests(unittest.TestCase):
 
     def test_raw_different_configurations_across_seed_pairs_fail(self):
         for seed in (1, 2):
-            for mode in ("none", "adjacent"):
+            for mode in ("none", "shortest"):
                 directory = self.raw_run(mode, seed=seed)
                 if seed == 2:
                     with (directory / "args.txt").open("a") as stream:
@@ -264,7 +264,7 @@ class InputTests(unittest.TestCase):
         source = self.csv_input()
         before = source.read_bytes()
         output = self.root / "output"
-        args = ["--runs-csv", str(source), "--output", str(output), "--mode", "adjacent", "--replicates", "100"]
+        args = ["--runs-csv", str(source), "--output", str(output), "--mode", "shortest", "--replicates", "100"]
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(bootstrap.main(args), 0)
         manifest = json.loads((output / "manifest.json").read_text())

@@ -10,8 +10,7 @@
 #
 # f is the small flows' share of bytes, 0.9 s / (0.9 s + 100 KB) for small flows of
 # s bytes and 10% of flows at 1 MB: 10 KB gives 8.3%, 27,778 B gives 20%, and 47,619 B
-# gives 30%.  These straddle the model's knees at about 10% (shortest) and 20%
-# (adjacent) on this network.
+# gives 30%.  These straddle the model's knee at about 10% on this network.
 NETWORK=(--nodes=256 --degree=16 --waypoints=4 --nextHops=2 --hostsPerRouter=4)
 WORKLOAD=(--flows=0 --spanMs=4 --releaseDelayUs=1000 --pattern=router-permutation)
 SMALL_BYTES=(10000 27778 47619)

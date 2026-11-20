@@ -19,7 +19,7 @@ case "$scenario" in
 esac
 case "$mode" in
     baseline) modes=(none) ;;
-    bypass) PROGRAM_NAME=tcp-bypass; modes=(adjacent shortest) ;;
+    bypass) PROGRAM_NAME=tcp-bypass; modes=(shortest) ;;
     *) echo "Unknown mode: $mode" >&2; exit 2 ;;
 esac
 EXPERIMENT="04-h2-$scenario-$mode"
@@ -39,7 +39,7 @@ for bypass in "${modes[@]}"; do
                 options=("--bypass=$bypass")
             fi
             run_experiment "$name" "${NETWORK[@]}" "${WORKLOAD[@]}" "${workload[@]}" \
-                "--load=$load" "--seed=$seed" "${options[@]}"
+                "--load=$load" "--seed=$seed" ${options[@]+"${options[@]}"}
         done
     done
 done

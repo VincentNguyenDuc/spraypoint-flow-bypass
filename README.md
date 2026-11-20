@@ -7,7 +7,7 @@ The repository has four programs:
 - **Verifier** (`spraypoint-verifier`): checks that the Spraypoint logic is correct, against the paper.
 - **Model check** (`bypass-model`): checks the bypass's models on the same routing tables, without simulating packets: path lengths, shortest-path counts, and worst-case throughput as the small flows' share of bytes grows.
 - **TCP experiment** (`tcp-experiment`): an ns-3 simulation measuring flow completion times under default Spraypoint.
-- **TCP bypass** (`tcp-bypass`): the same simulation with a small-flow bypass, on the direct link between neighboring routers (`--bypass=adjacent`) or on shortest paths between all routers (`--bypass=shortest`).
+- **TCP bypass** (`tcp-bypass`): the same simulation with the small-flow bypass on shortest paths between all routers (`--bypass=shortest`). It also supports `--bypass=adjacent`, the direct link between neighboring routers only, which the report sets aside (Section 3) and the experiments no longer run.
 
 **Start with the report, [report/](report/)**: it explains the project from the beginning, the models, and how to reproduce the results. Build it with `latexmk` in that folder.
 
@@ -37,12 +37,12 @@ Keep this table in step with the scripts in `experiments/`, which are the source
 
 | Experiment | Routers | Degree | Hosts per router | Span | Loads | Seeds | Bypass modes | Release delay |
 | --- | ---: | ---: | ---: | ---: | --- | --- | --- | ---: |
-| `01-smoke` | 64 | 8 | 2 | 1 ms | 0.1, 0.3 with no bypass; 0.3 with a bypass | 561 | none, adjacent, shortest | 500 µs |
-| `02-small-sweep` | 64 | 8 | 2 | 4 ms | 0.1, 0.3, 0.5, 0.7 | 561–565 | none, adjacent, shortest | 1 ms |
-| `03-load-sweep` | 256 | 16 | 4 | 4 ms | 0.1, 0.3, 0.5, 0.7, 0.9 | 561–563 | none, adjacent, shortest | 1 ms |
-| `04-oversubscription` | 256 | 16 | 6, 8 | 4 ms | 0.5 | 561–563 | none, adjacent, shortest | 1 ms |
-| `04-h2-<scenario>` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 | 561–563 | none, adjacent, shortest | 1 ms |
-| `06-permutation` | 256 | 16 | 4 | 4 ms | 0.1, 0.2, 0.3, 0.4 | 561–563 | none, adjacent, shortest | 1 ms |
+| `01-smoke` | 64 | 8 | 2 | 1 ms | 0.1, 0.3 with no bypass; 0.3 with a bypass | 561 | none, shortest | 500 µs |
+| `02-small-sweep` | 64 | 8 | 2 | 4 ms | 0.1, 0.3, 0.5, 0.7 | 561–565 | none, shortest | 1 ms |
+| `03-load-sweep` | 256 | 16 | 4 | 4 ms | 0.1, 0.3, 0.5, 0.7, 0.9 | 561–563 | none, shortest | 1 ms |
+| `04-oversubscription` | 256 | 16 | 6, 8 | 4 ms | 0.5 | 561–563 | none, shortest | 1 ms |
+| `04-h2-<scenario>` | 256 | 16 | 4 | 4 ms | 0.3, 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
+| `06-permutation` | 256 | 16 | 4 | 4 ms | 0.1, 0.2, 0.3, 0.4 | 561–563 | none, shortest | 1 ms |
 | `07-share-sweep` | 256 | 16 | 4 | 4 ms | 0.5, 0.7 | 561–563 | none, shortest | 1 ms |
 
 `06-permutation` uses `--pattern=router-permutation` to send each router's traffic to one partner router. It sweeps small-flow sizes of 10, 27.8 and 47.6 KB, which carry 8.3%, 20% and 30% of the bytes. `07-share-sweep` sweeps the same sizes under uniform traffic.
@@ -76,9 +76,9 @@ is not reliable for larger flows; use raw FCT and link metrics with that caveat.
 To run only the H2 evaluation and extended main load sweep, use
 `RESULTS_BATCH=<unique-batch-name> JOBS=8 bash experiments/run-h2.sh --memory-gb 12`.
 It validates the simulator, freezes sources, executables and ns-3 libraries, runs
-315 simulations (45 default-workload and 270 H2), and refreshes
+210 simulations (30 default-workload and 180 H2), and refreshes
 `analysis/H2.md`, `h2-runs.csv`, `h2-comparisons.csv` and `h2-pending.csv` in the
-batch as completed runs accumulate. All 315 runs share one global queue, so different
+batch as completed runs accumulate. All 210 runs share one global queue, so different
 workloads, seeds and routing modes can occupy the available slots. `JOBS` (or
 `--jobs`) sets the maximum simultaneous runs. Without an explicit limit, it uses
 the CPU count allowed by affinity and cgroup quota (16 on the current machine),
@@ -94,7 +94,7 @@ more work, and backfills from other scenarios when a large run cannot fit.
 
 The admission model is conservative, based on the existing default-workload peaks
 and generated flows per byte; it is not a measured peak or a hard memory limit.
-At a 12 GiB budget, 36 runs are deferred by this model: the fraction99 runs and
+At a 12 GiB budget, 24 runs are deferred by this model: the fraction99 runs and
 the fraction95 runs at load 0.7. They remain pending for a larger-memory machine
 or a deliberately revised budget, while other runs can finish. If only deferred
 runs remain, status becomes `blocked-memory` with exit status 2, never `complete`.
@@ -133,17 +133,12 @@ For paired seed/topology-cluster p99 intervals, use
 estimands, pairing checks, censoring and few-seed limitations. The tool does not
 modify the running batch or imply that three seeds establish a crossover.
 
-Two additional read-only analysis tools are available for new offline outputs:
+One additional read-only analysis tool is available for new offline outputs:
 
 - [`workload_cdf.py`](experiments/analysis/workload_cdf.py) computes expected flow
   and byte coverage for each cutoff, including the simulator's size rounding.
   [CDF coverage documentation](experiments/analysis/WORKLOAD_CDF.md) explains the
   difference from the continuous mean used for arrival rates.
-- [`h3_report.py`](experiments/analysis/h3_report.py) validates three-mode pairs
-  from a stable `h2-runs.csv`, then writes descriptive per-seed comparisons,
-  incremental shortest-path reach and within-condition Pareto tables to a new
-  directory outside the input batch. [H3_REPORT.md](experiments/analysis/H3_REPORT.md)
-  documents exclusions, sample warnings and why it does not rank cutoffs globally.
 
 To run everything including the original small sweep and the analysis scripts, use
 `RUN_H2=1 JOBS=8 MEMORY_BUDGET_GB=12 ./REPRODUCE.sh` (choose JOBS for available memory).

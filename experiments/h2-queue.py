@@ -112,8 +112,8 @@ def make_plan(source):
                     raise ValueError("Incomplete experiment plan")
                 del fields[:4 + count]
                 tasks.append(Task(experiment, run, program, options, memory_estimate(options, source)))
-    if len(tasks) != 315 or len({task.key for task in tasks}) != 315:
-        raise ValueError("Expected 315 distinct H2 runs")
+    if not tasks or len({task.key for task in tasks}) != len(tasks):
+        raise ValueError("Expected a nonempty plan of distinct H2 runs")
     # Make matched comparisons early, while still allowing the queue to backfill
     # from any other scenario when the next task cannot fit available memory.
     order = {"03-load-sweep": 0, **{f"04-h2-{s}": i + 1 for i, s in enumerate(SCENARIOS)}}
@@ -121,7 +121,7 @@ def make_plan(source):
         options = dict(arg[2:].split("=", 1) for arg in task.args)
         sweep = task.experiment.rsplit("-", 1)[0]
         return (float(options["load"]), order[sweep], int(options["seed"]),
-                ["none", "adjacent", "shortest"].index(options.get("bypass", "none")))
+                ["none", "adjacent", "shortest"].index(options.get("bypass", "none")))  # adjacent: older snapshots
     return sorted(tasks, key=priority)
 
 

@@ -17,7 +17,8 @@ import numpy as np
 
 
 CLASSES = ("all", "small", "small_adjacent", "small_other", "large")
-MODES = ("none", "adjacent", "shortest")
+# Older batches also ran the adjacent bypass; main() leaves those runs out.
+MODES = ("none", "shortest")
 IDENTITY = ("flow", "source_router", "destination_router", "adjacent", "small", "bytes", "start_ns")
 
 
@@ -309,7 +310,7 @@ def interval(point, distribution, clusters, confidence):
             "infinite_replicates": int(np.isinf(distribution).sum()), "status": ";".join(flags) or "percentile_interval"}
 
 
-def analyze(runs, classes=("small",), modes=("adjacent", "shortest"), estimand="mean-run-p99",
+def analyze(runs, classes=("small",), modes=("shortest",), estimand="mean-run-p99",
             replicates=10000, seed=561, confidence=.95, allow_incomplete=False, expected_seeds=()):
     if replicates < 1 or seed < 0 or not 0 < confidence < 1:
         raise ValueError("Need positive replicates, nonnegative RNG seed, and 0 < confidence < 1")
@@ -394,7 +395,7 @@ def main(argv=None):
             runs, provenance = load_batch(source_path, classes, args.trim, args.scenario, args.load)
         else:
             runs, provenance = load_csv(source_path, classes)
-        runs = [run for run in runs if (not args.scenario or run.scenario in args.scenario)
+        runs = [run for run in runs if run.mode in MODES and (not args.scenario or run.scenario in args.scenario)
                 and (not args.load or run.load in args.load)]
         results, pairing = analyze(runs, classes, modes, args.estimand, args.replicates, args.rng_seed,
                                    args.confidence, args.allow_incomplete, args.expected_seeds)

@@ -111,10 +111,12 @@ CLASS_NAMES = {
     "small_other": "Small, other routers",
     "large": "Large",
 }
-MODES = ["none", "adjacent", "shortest"]
-MODE_NAMES = {"none": "No bypass", "adjacent": "Adjacent bypass", "shortest": "Shortest-path bypass"}
-MODE_COLORS = {"none": "#2a78d6", "adjacent": "#eb6834", "shortest": "#1baf7a"}
-MODE_MARKERS = {"none": "o", "adjacent": "s", "shortest": "^"}
+# The bypass modes analyzed.  Older batches also ran --bypass=adjacent, which the
+# report sets aside (Section 3); load_runs skips those runs.
+MODES = ["none", "shortest"]
+MODE_NAMES = {"none": "No bypass", "shortest": "Shortest-path bypass"}
+MODE_COLORS = {"none": "#2a78d6", "shortest": "#1baf7a"}
+MODE_MARKERS = {"none": "o", "shortest": "^"}
 SMALL_CLASSES = ["small_adjacent", "small_other"]
 
 # The handshake timeout is this many minimum RTOs: see ConnTimeout in
@@ -208,6 +210,8 @@ def load_runs(experiment):
         options = dict(
             line.lstrip("-").split("=", 1) for line in (path / "args.txt").read_text().split()
         )
+        if options.get("bypass", "none") not in MODES:
+            continue
         meta = dict(line.split(": ", 1) for line in (path / "meta.txt").read_text().splitlines())
         meta["peak_memory_mb"] = _peak_memory_mb(path / "resources.log")
         runs.append(Run(path.name, path, options, meta, _parse_summary((path / "summary.txt").read_text())))

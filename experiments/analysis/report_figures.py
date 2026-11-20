@@ -40,9 +40,7 @@ WIDTH = 6.5
 SMALL = ["small_adjacent", "small_other"]
 SHORT_CLASS = {"small_adjacent": "Small, neighboring routers", "small_other": "Small, other routers", "large": "Large"}
 TABLE_CLASS = {"small_adjacent": "Neighbors", "small_other": "Other pairs"}
-# The report compares no bypass with the shortest-path bypass only; the adjacent bypass the
-# batches also ran is left out.
-MODES = ["none", "shortest"]
+MODES = common.MODES
 TABLE_MODE = {"none": "None", "shortest": "Shortest-path"}
 KINDS = ["Neighboring", "2 hops, c = 1", "2 hops, c = 2", "2 hops, c ≥ 3", "3+ hops"]
 
