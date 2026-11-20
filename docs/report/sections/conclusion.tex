@@ -1,22 +1,4 @@
-\section{Limitations, future work and conclusion}
+\section{Conclusion}
 \label{sec:conclusion}
 
-\paragraph{Limitations.}
-\begin{itemize}
-  \item \textbf{Drop-tail queues with no ECN.} Losses, not queueing, set the tail. A DCTCP-style congestion signal would likely shrink timeout rates and change how early the bypass hurts.
-  \item \textbf{A new connection per flow.} Lost connection setups cause many small-flow timeouts; persistent connections would remove most of them.
-  \item \textbf{Plain ECMP and single-path TCP.} The simulator has no adaptive load balancing or multipath transport, which would spread load more evenly than hashing and move the results toward the best-split models.
-  \item \textbf{Scale.} ns-3 runs 256 routers with 3 seeds of 4\,ms each. Paper-scale results come from the flow-level checker only, and we report no confidence intervals; we rely on consistency across seeds.
-  \item \textbf{Timeouts are inferred} from completion time, which is reliable for small flows only.
-\end{itemize}
-
-\paragraph{Future work.}
-\begin{itemize}
-  \item Test the bypass policies of \secref{sec:discussion}, first with the flow-level checker (minutes per run), then in ns-3 under permutation traffic.
-  \item Run the published workloads directly (\file{--flowSizeCdf}) with small-flow cutoffs of 30 and 100\,KB.
-  \item Serve small-flow packets from a priority queue, so they skip queues of large-flow packets.
-  \item Record drops per link and retransmissions per flow in the simulator, to see where flows lose packets.
-\end{itemize}
-
-\paragraph{Conclusion.}
 We asked whether routing small flows on shortest paths in an RNG fabric recovers the latency that spraying gives up, and at what cost to the rest of the traffic. We tested it under uniform and worst-case traffic, in a packet-level simulation and with flow-level computations at the paper's scale, against analytical models extended from the paper's.

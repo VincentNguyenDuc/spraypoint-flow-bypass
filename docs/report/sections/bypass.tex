@@ -5,8 +5,6 @@ A \emph{small flow} is one whose size is at most a threshold, 10\,KB in most of 
 
 Large flows keep using Spraypoint unchanged. The bypass adds no links and does not change Spraypoint's rings or tables; it is a separate lane on the same wires, as a separate VRF or traffic class would be on a real switch.
 
-\paragraph{Implementation.} The simulator extends Spraypoint's per-router routing with one decision (\file{src/tcp-bypass/bypass-routing.cc}): for a marked packet, return the shortest-path next hop (\file{src/tcp-bypass/shortest-paths.cc}, which precomputes distances by breadth-first search and hashes over the closer neighbors); otherwise defer to Spraypoint. Flows, TCP, and measurements are shared with the baseline, so runs with and without the bypass carry identical traffic.
-
 \subsection{Overhead on a switch (H4)}
 \label{sec:h4}
 
