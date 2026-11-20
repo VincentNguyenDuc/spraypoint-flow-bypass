@@ -1,6 +1,7 @@
 #include "tcp/traffic-pattern.h"
 
 #include "spraypoint/hash.h"
+#include "spraypoint/matching.h"
 
 #include <cmath>
 #include <cstdio>
@@ -136,6 +137,37 @@ CheckPermutation()
     }
     Expect("listener capacity multiplication does not overflow",
            large.MaximumFlows() == uint64_t{hosts} * 55535);
+}
+
+void
+CheckRouterPermutation()
+{
+    constexpr uint32_t routers = 16;
+    constexpr uint32_t hostsPerRouter = 4;
+    constexpr uint32_t hosts = routers * hostsPerRouter;
+    for (const uint64_t seed : {561ULL, 562ULL, 563ULL})
+    {
+        rng::TrafficPattern pattern(
+            hosts, {.pattern = "router-permutation", .routers = routers, .seed = seed});
+        const auto modelPartners = rng::RandomMatching(routers, seed + 1000);
+        std::mt19937_64 actual(rng::Key(seed, 0xf10, 0xb07));
+        std::mt19937_64 legacy = actual;
+        std::uniform_int_distribution<uint32_t> pickHost(0, hosts - 1);
+        std::uniform_int_distribution<uint32_t> pickLocalHost(0, hostsPerRouter - 1);
+        for (unsigned int flow = 0; flow < 1000; ++flow)
+        {
+            const auto pair = pattern.Select(actual);
+            const auto source = pickHost(legacy);
+            const auto partner = modelPartners[source / hostsPerRouter];
+            const auto destination = partner * hostsPerRouter + pickLocalHost(legacy);
+            Expect("router permutation matches the original endpoint draws",
+                   pair.sourceHost == source && pair.destinationHost == destination);
+            Expect("router permutation spans different routers", partner != source / hostsPerRouter);
+            Expect("router permutation leaves identical RNG state", actual == legacy);
+        }
+        Expect("router permutation reaches every listener destination",
+               pattern.MaximumFlows() == uint64_t{hosts} * 55535);
+    }
 }
 
 void
@@ -300,6 +332,12 @@ CheckValidation()
     Reject("self permutation shift", [] {
         rng::TrafficPattern pattern(7, {.pattern = "permutation", .permutationShift = 7});
     });
+    Reject("router permutation needs multiple routers", [] {
+        rng::TrafficPattern pattern(8, {.pattern = "router-permutation", .routers = 1});
+    });
+    Reject("router permutation needs equal host counts", [] {
+        rng::TrafficPattern pattern(9, {.pattern = "router-permutation", .routers = 2});
+    });
     Reject("empty hotspot set", [] {
         rng::TrafficPattern pattern(7, {.pattern = "hotspot", .hotspotHosts = 0});
     });
@@ -362,6 +400,7 @@ main()
 {
     CheckUniformCompatibility();
     CheckPermutation();
+    CheckRouterPermutation();
     CheckHotspot();
     CheckIncast();
     CheckPairing();

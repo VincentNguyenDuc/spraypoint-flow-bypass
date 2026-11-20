@@ -1,0 +1,38 @@
+\section{Reproducing the results}
+\label{app:reproducing}
+
+Everything in this report comes from the repository at commit \texttt{3b9f2ea} or later. The README describes the setup; this appendix lists what produces each result.
+
+\paragraph{Programs.} The first CMake configure fetches and builds a pinned ns-3 under \file{third_party/}. All programs land in \file{build/bin/}.
+\begin{itemize}
+  \item \file{spraypoint-verifier}: validates Spraypoint against the paper (\appref{app:validation}).
+  \item \file{bypass-model}: the flow-level checker (\secref{sec:checker}).
+  \item \file{tcp-experiment} and \file{tcp-bypass}: the ns-3 simulation without and with the bypass.
+\end{itemize}
+
+\paragraph{Experiments.} Each experiment is a script in \file{experiments/}, which runs its programs and writes one folder per run under \file{experiments/results/<machine>/<batch>/<script>/}, named after the code commit that produced it. \file{REPRODUCE.sh} runs everything, and \file{REMOTE.sh} runs it on a server over SSH. Rerunning a script skips finished runs. The report uses these batches:
+
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Experiments & Batch in \file{experiments/results/remote/} \\
+\midrule
+\file{02-small-sweep}, \file{03-load-sweep} & \texttt{2026-11-07\_120750\_5770a94} \\
+\file{04-oversubscription} & \texttt{2026-11-12\_221557\_cf0fc72} \\
+\file{05-bypass-model}, \file{06-permutation} & \texttt{2026-11-13\_102950\_bcb7193} \\
+\file{07-share-sweep} & \texttt{2026-11-13\_233502\_3b9f2ea} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Figures and tables.} \file{experiments/analysis/report_figures.py} reads those batches and writes every figure in \file{docs/report/figures/} and every generated table in \file{docs/report/tables/}. The notebooks in \file{experiments/analysis/} show the same analyses interactively: \file{01-baseline} and \file{02-bypass-comparison} for any sweep (set \texttt{SWEEP}), and \file{03-model-check} for \file{05} and \file{06} together.
+
+\begin{verbatim}
+cmake -B build && cmake --build build --parallel
+./REMOTE.sh fetch                     # copy the server's results
+experiments/analysis/.venv/bin/python experiments/analysis/report_figures.py
+cd docs/report && latexmk             # writes build/report.pdf
+\end{verbatim}
+
+\paragraph{Cost.} On the course server (16 cores, 30\,GB), a 256-router run at load 0.5 takes about an hour and 4\,GB; runs with 8 hosts per router or at load 0.7 need 6--8\,GB. The flow-level checker takes about 35 minutes per seed at the paper's scale on 16 cores, and seconds at ours.

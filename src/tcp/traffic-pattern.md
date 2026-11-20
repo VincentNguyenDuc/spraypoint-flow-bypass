@@ -8,18 +8,27 @@ a completed traffic-pattern sweep or establish a performance result.
 ## Patterns
 
 Host IDs range from zero to `H - 1`. Every pattern requires `H >= 2` and excludes
-self-flows. Different hosts on the same router remain valid endpoints.
+self-flows. Router permutation always crosses routers. Other patterns can
+select different hosts on the same router.
 
 | Pattern | Parameters and defaults | Selection |
 | --- | --- | --- |
 | `uniform` | None | Uniform source, then repeated uniform destination draws until distinct. |
 | `permutation` | `permutationShift=1` | Uniform source `s`, destination `(s + shift) mod H`. Require `1 <= shift < H`. |
+| `router-permutation` | `nodes`, `hostsPerRouter`, `seed` | Uniform source host and uniform destination host on its router's partner. Require at least two routers with equal host counts. |
 | `hotspot` | `hotspotHosts=1`, `hotspotFraction=0.9` | Choose the destination uniformly from IDs `[0, K)` with probability `p`, or `[K, H)` with probability `1-p`; choose the source uniformly from all other hosts. |
 | `incast` | `incastDestination=0`, `incastFanIn=0` | Fixed receiver `d`; choose a source uniformly among `(d+1) mod H` through `(d+F) mod H`. A fan-in of zero means `F=H-1`. |
 
-The permutation is a deterministic bijection with no fixed points. It need not
+The host permutation is a deterministic bijection with no fixed points. It need not
 form a single cycle: any nonzero shift below `H` is valid. Source occurrences
 remain random, so a finite run need not sample every source equally often.
+
+The router permutation uses `RandomMatching(nodes, seed + 1000)`, the same
+matching as index 0 in `bypass-model`. The matching uses a separate RNG. The
+workload retains the source and destination draws used by earlier
+`06-permutation` runs, whose recorded arguments called this pattern
+`permutation`. Use `router-permutation` to reproduce those inputs on this
+version.
 
 Hotspot requires `1 <= K < H` and finite `0 <= p <= 1`. The fraction controls the
 probability of targeting the hot set, including at its endpoints zero and one;
@@ -36,8 +45,8 @@ separate future workload models.
 `CheckedTrafficHostCount(routers, hostsPerRouter)` checks multiplication in
 64 bits, at least two total hosts, and the existing IPv4 plan's limits of 65,536
 routers and 253 hosts per router. Topology degree constraints still belong to
-the topology builder. Pure endpoint selection itself accepts any `uint32_t`
-host count of at least two; it allocates no per-host array.
+the topology builder. The selector accepts a `uint32_t` host count of at least
+two and allocates a partner vector only for router permutation.
 
 ## Offered load and matched routing comparisons
 
@@ -80,7 +89,7 @@ does not enlarge this budget. Distinct listener ports preserve per-flow receipt
 attribution and distinct connection five-tuples.
 
 `TrafficPattern::MaximumFlows()` is an upper bound from reachable destinations:
-`H * 55535` for uniform/permutation, `55535` for incast, and the corresponding
+`H * 55535` for uniform and both permutations, `55535` for incast, and the corresponding
 reachable destination count for hotspot (only `K` at `p=1`, only `H-K` at `p=0`,
 otherwise `H`). Random concentration can exhaust a destination sooner. When
 `spanMs == 0` and the requested exact flow count exceeds this bound, reject it
@@ -91,9 +100,8 @@ every random workload below it will fit.
 
 ## Integration
 
-`TcpExperimentConfig` exposes the five pattern-specific fields shown in
-`TrafficPatternConfig`, with matching CLI option names. `PatternConfig` converts
-the experiment config with a designated initializer:
+`PatternConfig` passes the pattern-specific CLI options and the existing router
+count and seed from the experiment config:
 
 ```cpp
 const TrafficPatternConfig patternConfig{
@@ -103,6 +111,8 @@ const TrafficPatternConfig patternConfig{
     .hotspotFraction = config.hotspotFraction,
     .incastDestination = config.incastDestination,
     .incastFanIn = config.incastFanIn,
+    .routers = config.nodes,
+    .seed = config.seed,
 };
 ```
 
@@ -117,13 +127,15 @@ The pure test can also run without configuring ns-3 or using the shared build:
 
 ```sh
 g++ -std=c++23 -O0 -Wall -Wextra -Werror -pedantic -I src \
-    src/tcp/traffic-pattern.cc test/traffic-pattern/traffic-pattern-test.cc \
+    src/tcp/traffic-pattern.cc src/spraypoint/matching.cc \
+    test/traffic-pattern/traffic-pattern-test.cc \
     -o /tmp/cse561-traffic-pattern-test
 /tmp/cse561-traffic-pattern-test
 ```
 
 It compares 90,000 uniform flows against the original generation operations,
 including RNG state and arrival times, and checks deterministic replay,
-permutation bijection, destination and sender distributions, two-host edge
+host permutation bijection, router matching and draw compatibility,
+destination and sender distributions, two-host edge
 cases, integer overflow, invalid parameters, normalization, and complete port
 exhaustion. These are generation tests; TCP performance sweeps remain pending.

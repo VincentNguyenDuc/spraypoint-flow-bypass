@@ -17,6 +17,8 @@ struct TrafficPatternConfig
     double hotspotFraction{0.9};  // probability that a flow's destination is in that set
     uint32_t incastDestination{0};
     uint32_t incastFanIn{0}; // next N cyclic host IDs after destination; 0 means all others
+    uint32_t routers{0};    // router-permutation divides the hosts evenly over these routers
+    uint64_t seed{0};       // topology seed used to choose router partners
 };
 
 struct TrafficPair
@@ -46,6 +48,7 @@ class TrafficPattern
     {
         UNIFORM,
         PERMUTATION,
+        ROUTER_PERMUTATION,
         HOTSPOT,
         INCAST,
     };
@@ -54,6 +57,8 @@ class TrafficPattern
     TrafficPatternConfig m_config;
     Kind m_kind{Kind::UNIFORM};
     uint32_t m_incastFanIn{0};
+    uint32_t m_hostsPerRouter{0};
+    std::vector<uint32_t> m_routerPartners;
     std::uniform_int_distribution<uint32_t> m_pickHost;
 };
 

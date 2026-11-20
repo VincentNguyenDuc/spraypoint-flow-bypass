@@ -39,7 +39,9 @@ PatternConfig(const TcpExperimentConfig& config)
             .hotspotHosts = config.hotspotHosts,
             .hotspotFraction = config.hotspotFraction,
             .incastDestination = config.incastDestination,
-            .incastFanIn = config.incastFanIn};
+            .incastFanIn = config.incastFanIn,
+            .routers = config.nodes,
+            .seed = config.seed};
 }
 
 double

@@ -14,8 +14,8 @@ changed paths, not the cost of implementing their selection in a switch.
 ## What the implementation requires
 
 These requirements follow from `BypassRouting::SelectNextHop` in
-[bypass-routing.cc](src/tcp-bypass/bypass-routing.cc), with local delivery handled
-first by [SpraypointRouting::RouteInput](src/tcp/spraypoint-routing.cc).
+[bypass-routing.cc](../src/tcp-bypass/bypass-routing.cc), with local delivery handled
+first by [SpraypointRouting::RouteInput](../src/tcp/spraypoint-routing.cc).
 
 | Condition | Required decision |
 | --- | --- |
@@ -102,7 +102,7 @@ limits are target-dependent. PSA separates route lookup from selection among gro
 members; see [PSA 1.1, §§7.11–7.12](https://p4lang.github.io/p4-spec/docs/PSA-v1.1.0.html).
 
 The simulator's all-pairs BFS and `n × n` distance matrix in
-[shortest-paths.cc](src/tcp-bypass/shortest-paths.cc) construct routes. They should
+[shortest-paths.cc](../src/tcp-bypass/shortest-paths.cc) construct routes. They should
 not be interpreted as per-packet switch operations or as on-chip forwarding state
 that every router must store verbatim. Control-plane route calculation and updates
 are separate from the steady-state packet-processing question.

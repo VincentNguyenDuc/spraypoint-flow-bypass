@@ -1,0 +1,40 @@
+\section{Models}
+\label{sec:models}
+
+Following feedback on our progress report, we model the bypass analytically before simulating it, by extending the RNG paper's own models (§7 and Appendices E--G of~\cite{rng}). This section gives the results; \appref{app:derivations} derives each one step by step. The models describe the paper's default fabric ($n = 1000$, $d = 64$, $p = 4$, $h = 2$) under a permutation at full load, as fluid traffic with no queues. Throughout, $f$ is the share of each pair's bytes in small, bypassed flows.
+
+\subsection{The paper's models of Spraypoint}
+
+\paragraph{Path length (Model 7.2).} The spray lands on a random neighbor $v$ of $s$, and the path then takes one hop per ring, so the hop count depends only on which ring $v$ is in. A ring's chance is its size over $n$: $d/n = 6.4\%$ of paths take 2 hops, $pd/n = 25.6\%$ take 3, and almost all the rest, 67.9\%, take 4. The mean is \textbf{3.61 hops}.
+
+\paragraph{Edge-disjoint paths (Model 7.1).} Every path into $t$ ends on one of $t$'s $d$ incoming links, its ``doors''. Each of $s$'s $d$ branches reaches $h$ random doors, so the number of separate lanes is a matching in a random bipartite graph, bounded by the doors anyone reaches: $d(1 - e^{-h}) \approx \mathbf{55}$ of 64.
+
+\paragraph{Oversubscription (Model 7.3).} Fill a pair's 2-hop paths first, then its 3-, 4- and 5-hop paths with the capacity other pairs leave. Let $\mu_i d$ be the traffic that fits on $i$-hop paths; then $r = 1/\sumu$. At the defaults $\mu_2 = 0.064$, $\mu_3 = 0.131$ and $\mu_4 = 0.111$, so $\sumu = 0.306$ and $r \approx \mathbf{3.27}$, against 3.25 from the paper's LP. This is the best possible split.
+
+\subsection{Extending them to the bypass}
+
+\paragraph{Bypass path length (B.1).} A bypassed flow takes the shortest path. On a random graph, $s$ is more than $k$ hops from $t$ only if all $d$ of its links miss $t$'s $(k-1)$-hop neighborhood, of about $d^{k-1}$ routers, so
+\[
+P(L_{\text{bypass}} \le k) \approx 1 - e^{-d^k/n}.
+\]
+6.4\% of pairs are neighbors, 92\% are 2 hops apart and 1.4\% are 3 hops apart, so a bypassed flow averages \textbf{1.95 hops} instead of 3.61.
+
+\paragraph{Bypass lanes (B.2).} The bypass spreads a pair's small flows over its shortest paths, so its capacity is $c$, the number of edge-disjoint shortest paths. Neighbors have $c = 1$, the direct link. For a 2-hop pair, each of $s$'s neighbors is also $t$'s with probability about $d/n$, so $c$ is roughly Poisson with mean $d^2/n = 4.1$, conditioned on $c \ge 1$. About 7\% of 2-hop pairs, roughly 6\% of all pairs, have $c = 1$. These single-path pairs set the bypass's limit.
+
+\paragraph{Oversubscription with the bypass, best split.} A 2-hop pair's shortest paths are exactly the $\mu_2$ paths the greedy fill uses first, so the bypass takes seats that would be filled anyway. The only new constraint is that the pair's bypassed traffic, $f$ times its rate, must fit on its $c$ paths:
+\[
+r_{\text{ideal}}(f) = \max\!\Big(\frac{1}{\sumu},\ \frac{f d}{c}\Big),
+\qquad \text{free while } f < \frac{c}{d \sumu}.
+\]
+Because the worst pair sets $r$, and every permutation contains pairs with $c = 1$, the network-wide knee is $f \approx 1/(64 \times 0.306) \approx \mathbf{5\%}$. Above it, $r$ grows as $64 f$.
+
+\paragraph{Oversubscription with the bypass, ECMP.} With even splitting, Spraypoint's own load is uneven, and bypassed traffic adds to whatever Spraypoint already puts on a link rather than taking seats that were free. With $O_{\text{ecmp}}$ the oversubscription without the bypass,
+\[
+r_{\text{ECMP}}(f) \approx O_{\text{ecmp}} (1 - f) + \frac{f d}{c}.
+\]
+There is no free region: the cost starts at $f = 0$. The models can't give $O_{\text{ecmp}}$ itself, so we measure it with the flow-level checker (\appref{app:derivations}, Step 7).
+
+\subsection{At our simulation's scale}
+\label{sec:models-scale}
+
+The 256-router network has $d^2/n = 1$ instead of 4.1. Path lengths keep their proportions, but many more of its 2-hop pairs have $c = 1$. The knee $c/(d \sumu)$ of a single pair moves up because $d$ is four times smaller, but with so many single-path pairs, two of them often share a link, which brings the knee back down (\secref{sec:models-vs-sim}). So the simulation can test the models' form, but not the paper-scale knee itself, which only the flow-level checker covers.

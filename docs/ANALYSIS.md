@@ -2,16 +2,17 @@
 
 The small-flow bypass does what H1 predicts. Small flows between adjacent routers drop from 3.3 fabric hops to 1, their median FCT falls by about 45%, their p99 without timeouts falls by 20–33%, and half as many of them wait for a timeout. The shortest-path bypass also speeds up every other small flow, by about 24% at the median. Up to load 0.5, neither bypass shows the cost that H2 predicts. Large-flow throughput, fan-in and the busiest links barely move, because small flows carry only about 8% of the bytes. So H2 is still untested, not refuted.
 
-These are M2 results. [TODO.md](TODO.md) lists what M3 adds.
+These are M2 results. See the [report](report/) for the later modelling and
+traffic sweeps and the [TODO list](TODO.md) for remaining work.
 
 ## Data
 
 - **Batch:** `experiments/results/remote/2026-11-07_120750_5770a94/`, run on the course server by `./REMOTE.sh` with the simulator as of commit `5770a94`. Results are not committed. `./REMOTE.sh fetch` copies them, and `./REPRODUCE.sh` regenerates them.
 - **Main sweep:** `03-load-sweep`, with 256 routers of degree 16 and 4 hosts each. This keeps the proportions of the full-scale design (*n* = 1,000, *d* = 64), including the 6% of router pairs that are adjacent. It covers loads 0.1, 0.3 and 0.5, seeds 561–563, and all three modes, for 27 runs and about 1.27 million flows per mode.
 - **Second sweep:** `02-small-sweep`, with 64 routers of degree 8. It is the only sweep that reaches load 0.7. It has twice the share of adjacent pairs (11% of flows), covers 5 seeds, and has 60 runs.
-- **Workload:** 90% of flows are 10 KB and 10% are 1 MB, between uniform random hosts. Each flow opens a new TCP connection, with a 1 ms minimum RTO. See the [README](README.md) for the other settings.
+- **Workload:** 90% of flows are 10 KB and 10% are 1 MB, between uniform random hosts. Each flow opens a new TCP connection, with a 1 ms minimum RTO. See the [README](../README.md) for the other settings.
 - **Health:** every flow finished in every run, with no TTL or no-route drops, and all three modes run the same flows.
-- **Where each number comes from:** the numbers below come from the committed notebooks [01-baseline.ipynb](experiments/analysis/01-baseline.ipynb) and [02-bypass-comparison.ipynb](experiments/analysis/02-bypass-comparison.ipynb), which were run on the load sweep. Numbers marked *small sweep* come from the same notebooks run with `SWEEP=02-small-sweep`.
+- **Where each number comes from:** the numbers below come from the committed notebooks [01-baseline.ipynb](../experiments/analysis/01-baseline.ipynb) and [02-bypass-comparison.ipynb](../experiments/analysis/02-bypass-comparison.ipynb), which were run on the load sweep. Numbers marked *small sweep* come from the same notebooks run with `SWEEP=02-small-sweep`.
 
 ## Reading the tail
 

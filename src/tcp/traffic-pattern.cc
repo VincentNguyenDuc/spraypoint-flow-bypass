@@ -1,5 +1,7 @@
 #include "traffic-pattern.h"
 
+#include "spraypoint/matching.h"
+
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -27,6 +29,18 @@ TrafficPattern::TrafficPattern(uint32_t hosts, const TrafficPatternConfig& confi
         {
             throw std::invalid_argument("permutationShift must be between 1 and hosts - 1");
         }
+    }
+    else if (config.pattern == "router-permutation")
+    {
+        if (config.routers < 2 || config.routers > hosts || hosts % config.routers != 0)
+        {
+            throw std::invalid_argument("router-permutation needs at least two routers with an "
+                                        "equal, positive number of hosts per router");
+        }
+        m_kind = Kind::ROUTER_PERMUTATION;
+        m_hostsPerRouter = hosts / config.routers;
+        // Use matching 0 of bypass-model without consuming any workload RNG draws.
+        m_routerPartners = RandomMatching(config.routers, config.seed + 1000);
     }
     else if (config.pattern == "hotspot")
     {
@@ -58,7 +72,8 @@ TrafficPattern::TrafficPattern(uint32_t hosts, const TrafficPatternConfig& confi
     else
     {
         throw std::invalid_argument("unknown pattern " + config.pattern +
-                                    "; use uniform, permutation, hotspot, or incast");
+                                    "; use uniform, permutation, router-permutation, "
+                                    "hotspot, or incast");
     }
 }
 
@@ -81,6 +96,13 @@ TrafficPattern::Select(std::mt19937_64& random)
         const auto destination = static_cast<uint32_t>(
             (uint64_t{source} + m_config.permutationShift) % m_hosts);
         return {source, destination};
+    }
+    if (m_kind == Kind::ROUTER_PERMUTATION)
+    {
+        const auto source = m_pickHost(random);
+        const auto partner = m_routerPartners[source / m_hostsPerRouter];
+        std::uniform_int_distribution<uint32_t> pickLocalHost(0, m_hostsPerRouter - 1);
+        return {source, partner * m_hostsPerRouter + pickLocalHost(random)};
     }
     if (m_kind == Kind::HOTSPOT)
     {

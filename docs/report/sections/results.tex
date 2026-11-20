@@ -1,0 +1,41 @@
+\section{Results}
+\label{sec:results}
+
+We present the results in the order the project found them: first the latency gain under realistic traffic, then the search for a cost under uniform traffic, then worst-case traffic, and finally how well the models predicted what we measured.
+
+\subsection{H1: the bypass cuts small-flow latency}
+\label{sec:h1}
+
+We compare the paths small flows take with and without the bypass, then their completion times and timeout rates under uniform traffic (\file{03-load-sweep}), for small flows between neighbors and between other pairs.
+
+\paragraph{The gain as the fabric fills.} \file{04-oversubscription} makes the fabric busier without raising the load on each host link, by adding hosts per router, and asks whether the gain holds.
+
+\subsection{H3: reach}
+\label{sec:h3}
+
+Only a small share of small flows run between neighboring routers. We measure how much the bypass helps the small flows between all other pairs, which it reaches only because it covers every pair. Covering every pair has a price, which \secref{sec:h2-perm} examines.
+
+\subsection{H2 under uniform traffic}
+\label{sec:h2-uniform}
+
+We look for a cost to other traffic in every measure from \secref{sec:method}: large-flow goodput, link utilization and drops, the links the bypass loads most, and fan-in. \file{07-share-sweep} then raises the small flows' share of bytes $f$, at higher loads, to see whether a cost appears.
+
+\subsection{H2 under worst-case traffic: the crossover}
+\label{sec:h2-perm}
+
+The models (\secref{sec:models}) say the bypass's cost appears only when single pairs carry a lot, as in a permutation. \file{06-permutation} runs exactly that, raising $f$ and the load.
+
+\paragraph{Small flows between neighbors.} How their completion times and timeouts change once all of a neighboring pair's small flows share one direct link.
+
+\paragraph{Large flows.} The change in mean goodput and in the slowest 1\% of flows.
+
+\paragraph{Who pays.} Large-flow throughput kept, broken down by the kind of router pair the models classify: neighbors, 2-hop pairs by their number of shortest paths $c$, and 3-hop pairs.
+
+\subsection{The models against the measurements}
+\label{sec:models-vs-sim}
+
+\paragraph{Flow level.} The flow-level checker's worst-case throughput with the bypass, against the best-split and ECMP models, at both scales.
+
+\paragraph{ns-3.} The worst pair's throughput kept in the simulation, against the ECMP model's prediction for the same permutation, at each load.
+
+\paragraph{What the models miss.} The models are fluid and have no queues, so they predict throughput, not latency.
