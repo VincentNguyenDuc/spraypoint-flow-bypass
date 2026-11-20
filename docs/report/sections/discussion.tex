@@ -5,15 +5,6 @@
 
 The models give a share of small bytes $f$ below which the bypass is safe even under worst-case traffic. Real datacenter traffic is dominated by a few large flows, so we compare that threshold with the share of bytes in small flows for two published flow-size distributions, the web search workload from DCTCP~\cite{dctcp} and Facebook's Hadoop workload~\cite{fbdc}, as distributed with HPCC~\cite{hpcc} (\file{experiments/workloads/}), at several small-flow cutoffs. Two caveats: these are averages over all pairs, and services that exchange mostly small messages can have pairs far above them; and modern services often reuse long-lived connections, so ``small'' should mean a small message, not a short connection.
 
-\subsection{A bypass policy}
-
-The results point to a simple policy:
-\begin{enumerate}
-  \item \textbf{Cap each pair's bypassed bytes} below the safe share. A switch can enforce this by sending only the first $N$ bytes of a flow on the bypass, which bounds $f$ even for a pair whose traffic is mostly small flows.
-  \item \textbf{Skip pairs with a single shortest path}, which pay the whole cost. Letting neighbors use any path of at most two hops instead gives them several lanes.
-\end{enumerate}
-We have not yet tested these policies; \secref{sec:conclusion} lists them as next steps.
-
 \subsection{What the models can and can't tell us}
 
 The models, extended from the paper's, predict who pays, when, and how much throughput the worst pair keeps at saturation. They are fluid models of a permutation at full load, so they say nothing about queues. They also assume many flows split exactly evenly; real hashing of a few flows is lumpier.

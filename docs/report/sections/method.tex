@@ -21,7 +21,7 @@ Flows go between hosts in one of two patterns:
 
 \subsection{Experiments}
 
-\autoref{tab:sweeps} lists the sweeps. Each runs 3 topology seeds (5 for the small network), with and without the bypass on the same flows, so each flow can be compared with itself.
+\autoref{tab:sweeps} lists the sweeps. Each runs 3 topology seeds, with and without the bypass on the same flows, so each flow can be compared with itself.
 
 \begin{table}[ht]
 \centering
@@ -31,7 +31,6 @@ Flows go between hosts in one of two patterns:
 Experiment & Traffic & Network & What varies \\
 \midrule
 \file{03-load-sweep} & uniform & 256 routers, 4 hosts each & load 0.1, 0.3, 0.5 \\
-\file{02-small-sweep} & uniform & 64 routers of degree 8, 2 hosts each & load 0.1--0.7 \\
 \file{04-oversubscription} & uniform & as \file{03}, 6 and 8 hosts each & hosts per router, at load 0.5 \\
 \file{05-bypass-model} & permutation & flow level: 256/16 and 1{,}000/64 & $f$ from 0 to 30\%, 10 permutations \\
 \file{06-permutation} & permutation & as \file{03} & $f$ = 8.3, 20, 30\%; load 0.1--0.4 \\
