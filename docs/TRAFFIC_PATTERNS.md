@@ -1,6 +1,6 @@
 # Traffic-pattern semantics
 
-`traffic-pattern.h` is independent of ns-3 and routing mode. It selects endpoints
+`src/tcp/traffic-pattern.h` is independent of ns-3 and routing mode. It selects endpoints
 for one flow at a time; flow sizes and the Poisson arrival process remain with
 the experiment. This adds workload-generation capability. It does not constitute
 a completed traffic-pattern sweep or establish a performance result.

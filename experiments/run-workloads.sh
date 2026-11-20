@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Complete H2 evaluation, isolated from later edits to the working tree.
-# RESULTS_BATCH=<name> JOBS=8 bash experiments/run-h2.sh [--dry-run] [--memory-gb N]
+# Runs the workload sweep (08-workloads and the default-workload 03-load-sweep) through
+# experiments/workload-queue.py, from a snapshot of the sources and programs frozen into
+# the batch, so later edits to the working tree don't change it.  See
+# docs/WORKLOAD_SWEEP.md.
+# RESULTS_BATCH=<name> JOBS=8 bash experiments/run-workloads.sh [--dry-run] [--memory-gb N]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$PWD
@@ -13,7 +16,7 @@ for argument in "$@"; do
     if [[ $argument == --dry-run ]]; then
         PLAN_SOURCE=$ROOT
         if [[ -f $BATCH_DIR/snapshot.ready ]]; then PLAN_SOURCE=$SNAPSHOT; fi
-        exec python3 "$ROOT/experiments/h2-queue.py" "$BATCH_DIR" --source "$PLAN_SOURCE" "$@"
+        exec python3 "$ROOT/experiments/workload-queue.py" "$BATCH_DIR" --source "$PLAN_SOURCE" "$@"
     fi
 done
 mkdir -p "$BATCH_DIR"
@@ -31,8 +34,8 @@ if [[ ! -f $BATCH_DIR/snapshot.ready ]]; then
     ctest --test-dir build -R '^tcp-port-drops$' --output-on-failure
     mkdir -p "$SNAPSHOT" "$BATCH_DIR/bin"
     tar -cf - src cmake CMakeLists.txt test experiments/*.sh experiments/workloads \
-        experiments/analysis/common.py experiments/analysis/h2-report.py \
-        README.md docs/ANALYSIS.md docs/OVERHEAD.md | tar -xf - -C "$SNAPSHOT"
+        experiments/analysis/cli.py experiments/analysis/common.py experiments/analysis/04-workloads.py \
+        README.md docs/WORKLOAD_SWEEP.md | tar -xf - -C "$SNAPSHOT"
     cp build/bin/tcp-experiment build/bin/tcp-bypass "$BATCH_DIR/bin/"
     mkdir -p "$BATCH_DIR/lib"
     cp third_party/ns-3-install/lib/libns3*.so "$BATCH_DIR/lib/"
@@ -53,5 +56,5 @@ exec 9>&-
 
 PYTHON=$ROOT/experiments/analysis/.venv/bin/python
 test -x "$PYTHON" || { echo "Install experiments/analysis/requirements.txt in .venv first" >&2; exit 1; }
-exec python3 "$ROOT/experiments/h2-queue.py" "$BATCH_DIR" --source "$SNAPSHOT" \
+exec python3 "$ROOT/experiments/workload-queue.py" "$BATCH_DIR" --source "$SNAPSHOT" \
     --report-python "$PYTHON" "$@"

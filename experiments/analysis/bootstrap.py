@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Paired cluster bootstrap for H2 p99s; see STATISTICS.md for estimands and limits."""
+"""Paired cluster bootstrap for the workload sweep's (H2) p99s; see docs/STATISTICS.md
+for estimands and limits."""
 
 import argparse
 import csv
@@ -75,7 +76,7 @@ def _stamp(path):
 
 
 def load_csv(path, classes):
-    """Read the existing h2-runs.csv schema (optional run_id for repeated runs)."""
+    """Read the runs.csv schema that 04-workloads.py writes (optional run_id for repeated runs)."""
     before = _stamp(path)
     data = path.read_bytes()
     rows = list(csv.DictReader(data.decode().splitlines()))
@@ -91,14 +92,23 @@ def load_csv(path, classes):
         runs.append(Run(row["scenario"], float(row["load"]), int(row["seed"]), row["bypass"],
                         row["topology_fingerprint"], row["flow_fingerprint"], p99, counts,
                         run_id=row.get("run_id", "0"), unfinished=int(row["unfinished"]), source=str(path)))
-    return runs, {"kind": "h2-runs.csv", "path": str(path), "sha256": hashlib.sha256(data).hexdigest(),
+    return runs, {"kind": "runs.csv", "path": str(path), "sha256": hashlib.sha256(data).hexdigest(),
                   "stamp": before, "ignored_directories": [],
                   "caveat": "Aggregate inputs trust upstream p99 calculation, trimming, completion, and run settings."}
 
 
-def _scenario(directory):
-    match = re.fullmatch(r"(03-load-sweep|04-h2-(.+))-(baseline|bypass)", directory.name)
-    return ("default" if match[1] == "03-load-sweep" else match[2]) if match else None
+def _sweep(directory):
+    """The sweep of an experiment folder of the workload sweep, or None for any other."""
+    match = re.fullmatch(r"(03-load-sweep|08-workloads)-(baseline|bypass)", directory.name)
+    return match[1] if match else None
+
+
+def _scenario(sweep, run):
+    """A run's workload scenario: "default" in 03-load-sweep, otherwise the start of its
+    folder name, <scenario>_load-..., after any bypass prefix."""
+    if sweep == "03-load-sweep":
+        return "default"
+    return run.name.removeprefix("shortest_").split("_load-")[0]
 
 
 def _read_run(directory, scenario, classes, trim):
@@ -167,14 +177,17 @@ def _read_run(directory, scenario, classes, trim):
 def load_batch(path, classes, trim=.1, scenarios=(), loads=()):
     runs, inputs, ignored = [], [], []
     for experiment in sorted(path.iterdir()):
-        scenario = _scenario(experiment)
-        if not experiment.is_dir() or scenario is None or (scenarios and scenario not in scenarios):
+        sweep = _sweep(experiment)
+        if not experiment.is_dir() or sweep is None:
             continue
         for directory in sorted(experiment.iterdir()):
             if not directory.is_dir():
                 continue
             if directory.suffix in (".partial", ".failed"):
                 ignored.append(str(directory))
+                continue
+            scenario = _scenario(sweep, directory)
+            if scenarios and scenario not in scenarios:
                 continue
             if loads:
                 args = dict(arg.removeprefix("--").split("=", 1)
@@ -365,8 +378,8 @@ def json_safe(value):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--batch", type=Path, help="H2 batch with finalized run directories")
-    source.add_argument("--runs-csv", type=Path, help="Stable copy of h2-runs.csv")
+    source.add_argument("--batch", type=Path, help="workload-sweep batch with finalized run directories")
+    source.add_argument("--runs-csv", type=Path, help="stable copy of the runs.csv that 04-workloads.py writes")
     parser.add_argument("--output", type=Path, required=True, help="New directory outside the input directory")
     parser.add_argument("--class", dest="classes", action="append", choices=CLASSES)
     parser.add_argument("--mode", dest="modes", action="append", choices=MODES[1:])

@@ -1,8 +1,10 @@
 # Paired p99 bootstrap
 
-`bootstrap.py` is a separate, read-only analysis of completed H2 runs or a stable
-copy of `h2-runs.csv`. It writes `intervals.csv` and `manifest.json` to a **new
-directory outside the input directory**. It does not update `H2.md`, the H2 cache,
+`experiments/analysis/bootstrap.py` is a separate, read-only analysis of completed
+workload-sweep (H2) runs or a stable copy of the `runs.csv` that
+`experiments/analysis/04-workloads.py` writes. It writes `intervals.csv` and
+`manifest.json` to a **new directory outside the input directory**. It does not
+update the workload summary, its cache,
 the dispatcher, or the experimental-completion checklist. Implementing this tool
 does not complete the bootstrap analysis of the experimental results.
 
@@ -10,7 +12,7 @@ Requires Python 3.10+ and NumPy (already in `requirements.txt`). Small synthetic
 tests, without running ns-3 or opening experiment outputs:
 
 ```sh
-python3 -m unittest discover -s test/analysis -p 'test_bootstrap.py' -v
+ctest --test-dir build -R analysis-bootstrap --output-on-failure
 ```
 
 ## Usage
@@ -20,8 +22,8 @@ report CSV. Supply its path explicitly; the tool never picks the newest batch.
 
 ```sh
 python3 experiments/analysis/bootstrap.py \
-  --runs-csv /tmp/h2-statistics-input/h2-runs.csv \
-  --output /tmp/h2-statistics-mean \
+  --runs-csv /tmp/workload-statistics-input/runs.csv \
+  --output /tmp/workload-statistics-mean \
   --estimand mean-run-p99 --class small --class small_adjacent \
   --expected-seeds 561 562 563 --replicates 10000 --rng-seed 561
 ```
@@ -32,8 +34,8 @@ This example restricts the work to one scenario/load and one comparison:
 
 ```sh
 python3 experiments/analysis/bootstrap.py \
-  --batch /path/to/completed-h2-batch \
-  --output /tmp/h2-statistics-pooled \
+  --batch /path/to/completed-workload-batch \
+  --output /tmp/workload-statistics-pooled \
   --scenario default --load 0.5 --mode shortest --class small \
   --estimand pooled-p99 --expected-seeds 561 562 563
 ```
@@ -66,14 +68,14 @@ The p99 and interval endpoints use the inverse empirical CDF (smallest value
 with at least the requested fraction of observations at or below it), matching
 `common.percentile`. There is no interpolation between adjacent observations.
 Raw runs retain starts within `[0.1 * last_start, 0.9 * last_start]`, inclusively,
-matching the H2 report. `--trim` changes both ends for raw inputs only. Aggregate
+matching the workload report. `--trim` changes both ends for raw inputs only. Aggregate
 inputs trust the upstream trimming and p99 calculation; those are not encoded in
-the current `h2-runs.csv` schema.
+the current `runs.csv` schema.
 
 ## Pairing and the sampling unit
 
 Pairs are matched on `(scenario, load, seed, run_id)`, with baseline `none`.
-`run_id` is an optional aggregate-CSV field, defaulting to `0`; the raw H2 schema
+`run_id` is an optional aggregate-CSV field, defaulting to `0`; the raw workload-sweep schema
 has one run per seed/mode. Duplicate keys fail. Matched runs must have identical
 flow fingerprints, topology fingerprints, and selected class counts. Raw input
 also checks source commit and identical arguments apart from seed, bypass, and
@@ -119,7 +121,7 @@ matrix. Finalized simulation directories may contain unfinished **flows**; this
 is distinct from an unfinished run directory. Zero retained flows in a selected
 class fail, rather than silently changing the estimand by dropping runs.
 
-Unfinished flows have `+inf` FCT, as in the H2 report. This treats them as worst
+Unfinished flows have `+inf` FCT, as in the workload report. This treats them as worst
 outcomes and can make the p99 or an interval endpoint infinite. It is a censoring
 sentinel, not an estimate of their eventual completion time; these intervals are
 not a survival-analysis correction. Ratios with a nonfinite input or zero

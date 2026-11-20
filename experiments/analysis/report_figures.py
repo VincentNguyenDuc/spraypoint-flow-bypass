@@ -5,7 +5,7 @@
 Figures go to report/figures/ as PDF, and tables to report/tables/ as LaTeX
 tabular fragments that the report \\inputs.  Both are committed, since the results are
 not.  The batches are pinned below, so the report always shows the same runs; a figure
-whose batch is missing is skipped with a warning, so the rest still regenerate.
+whose batch is not pinned or missing is skipped with a warning, so the rest still regenerate.
 """
 
 import sys
@@ -24,13 +24,10 @@ import common  # noqa: E402
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 REMOTE = common.RESULTS_ROOT / "remote"
-BATCHES = {
-    "03-load-sweep": REMOTE / "2026-11-07_120750_5770a94",
-    "04-oversubscription": REMOTE / "2026-11-12_221557_cf0fc72",
-    "05-bypass-model": REMOTE / "2026-11-13_102950_bcb7193",
-    "06-permutation": REMOTE / "2026-11-13_102950_bcb7193",
-    "07-share-sweep": REMOTE / "2026-11-13_233502_3b9f2ea",
-}
+# The batch each sweep's figures come from, such as
+#     "03-load-sweep": REMOTE / "2026-11-20_120000_abc1234",
+# so the report always shows the same runs.  Pin each sweep once its rerun finishes.
+BATCHES = {}
 REPORT = common.ROOT / "report"
 FIGURES = REPORT / "figures"
 TABLES = REPORT / "tables"
@@ -46,6 +43,9 @@ KINDS = ["Neighboring", "2 hops, c = 1", "2 hops, c = 2", "2 hops, c ≥ 3", "3+
 
 
 def available(sweep):
+    if sweep not in BATCHES:
+        print(f"warning: no batch pinned for {sweep}; skipping its figures and tables", file=sys.stderr)
+        return False
     path = BATCHES[sweep] / (sweep if sweep == "05-bypass-model" else f"{sweep}-baseline")
     if not path.is_dir():
         print(f"warning: no {sweep} results at {path}; skipping its figures and tables", file=sys.stderr)

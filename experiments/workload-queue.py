@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Run a frozen H2 matrix through one CPU- and memory-limited process queue."""
+"""Run the frozen workload sweep (08-workloads, plus 03-load-sweep for the default
+workload) through one CPU- and memory-limited process queue.  See docs/WORKLOAD_SWEEP.md."""
 import argparse
 import dataclasses
 import datetime
@@ -19,8 +20,11 @@ import tempfile
 import time
 
 
+# Scenarios in the order the queue starts them, after the default workload; the
+# scenarios themselves are defined in experiments/08-workloads-settings.sh.
 SCENARIOS = ["fraction95", "fraction99", "size50k", "size100k", "web10k", "web100k",
              "web1m", "hadoop10k", "hadoop100k", "hadoop1m"]
+SWEEPS = ["03-load-sweep", "08-workloads"]
 GIB = 1024 ** 3
 PLAN_SHIM = r'''
 set -euo pipefail
@@ -57,6 +61,14 @@ class Task:
         return f"{self.experiment}/{self.run}"
 
 
+def scenario(task):
+    """The workload scenario of a run: "default" for 03-load-sweep, otherwise the start
+    of its name, <scenario>_load-..., after any bypass prefix."""
+    if task.experiment.startswith("03-load-sweep"):
+        return "default"
+    return task.run.removeprefix("shortest_").split("_load-")[0]
+
+
 def memory_estimate(args, source):
     """Conservative admission estimate, not a hard limit or a measured peak.
 
@@ -83,18 +95,15 @@ def memory_estimate(args, source):
 def make_plan(source):
     """Capture the frozen scripts' real options through a planning-only shim.
 
-    The shim never sources common.sh, builds programs, or runs a simulator. This
-    also works with snapshots created before the global queue was introduced.
+    The shim never sources common.sh, builds programs, or runs a simulator.
     """
-    invocations = [(f"03-load-sweep-{mode}.sh", []) for mode in ["baseline", "bypass"]]
-    invocations += [("04-h2-sweep.sh", [scenario, mode])
-                    for scenario in SCENARIOS for mode in ["baseline", "bypass"]]
+    invocations = [(f"{sweep}-{mode}.sh", []) for sweep in SWEEPS for mode in ["baseline", "bypass"]]
     env = os.environ.copy()
-    for name in ["EXPERIMENT", "PROGRAM_NAME", "EXPERIMENT_LOADS", "EXPERIMENT_SEEDS"]:
+    for name in ["EXPERIMENT", "PROGRAM_NAME", "EXPERIMENT_SCENARIOS", "EXPERIMENT_LOADS", "EXPERIMENT_SEEDS"]:
         env.pop(name, None)
     env["EXPERIMENT_SOURCE_ROOT"] = str(source)
     tasks = []
-    with tempfile.TemporaryDirectory(prefix="h2-plan-") as directory:
+    with tempfile.TemporaryDirectory(prefix="workload-plan-") as directory:
         root = Path(directory)
         (root / "common.sh").write_text(PLAN_SHIM)
         for script, args in invocations:
@@ -113,15 +122,14 @@ def make_plan(source):
                 del fields[:4 + count]
                 tasks.append(Task(experiment, run, program, options, memory_estimate(options, source)))
     if not tasks or len({task.key for task in tasks}) != len(tasks):
-        raise ValueError("Expected a nonempty plan of distinct H2 runs")
+        raise ValueError("Expected a nonempty plan of distinct workload runs")
     # Make matched comparisons early, while still allowing the queue to backfill
     # from any other scenario when the next task cannot fit available memory.
-    order = {"03-load-sweep": 0, **{f"04-h2-{s}": i + 1 for i, s in enumerate(SCENARIOS)}}
+    order = {"default": 0, **{s: i + 1 for i, s in enumerate(SCENARIOS)}}
     def priority(task):
         options = dict(arg[2:].split("=", 1) for arg in task.args)
-        sweep = task.experiment.rsplit("-", 1)[0]
-        return (float(options["load"]), order[sweep], int(options["seed"]),
-                ["none", "adjacent", "shortest"].index(options.get("bypass", "none")))  # adjacent: older snapshots
+        return (float(options["load"]), order.get(scenario(task), len(order)), int(options["seed"]),
+                ["none", "shortest"].index(options.get("bypass", "none")))
     return sorted(tasks, key=priority)
 
 
@@ -363,7 +371,7 @@ class Scheduler:
                 return
             self.reporter = None
             if code:
-                raise RuntimeError("H2 analysis failed; see analysis/report.log")
+                raise RuntimeError("Workload analysis failed; see analysis/report.log")
         count = self.finished + self.skipped
         if count == self.reported_count:
             return
@@ -393,7 +401,7 @@ class Scheduler:
                 directory = self.batch / "scheduler"
                 directory.mkdir(exist_ok=True)
                 digest = hashlib.sha256(self.provenance_script.read_bytes()).hexdigest()
-                shutil.copy2(self.provenance_script, directory / f"h2-queue-{digest[:12]}.py")
+                shutil.copy2(self.provenance_script, directory / f"workload-queue-{digest[:12]}.py")
                 atomic_text(directory / "plan.json", json.dumps(
                     [dataclasses.asdict(task) for task in self.tasks], indent=2) + "\n")
                 atomic_text(directory / "config.json", json.dumps(dict(started=now(), scheduler_sha256=digest,
@@ -477,25 +485,25 @@ def main():
     tasks = make_plan(source)
     done = [task for task in tasks if completed(batch, task)]
     deferred = [task for task in tasks if task.memory_gb > options.memory_gb and task not in done]
-    print(f"H2 plan: {len(tasks)} runs, {len(done)} already completed; jobs={options.jobs}; "
+    print(f"Workload plan: {len(tasks)} runs, {len(done)} already completed; jobs={options.jobs}; "
           f"budget={options.memory_gb:.1f} GiB; reserve={options.reserve_gb:.1f} GiB", flush=True)
     groups = {}
     for task in deferred:
         load = next(arg for arg in task.args if arg.startswith("--load="))
-        key = (task.experiment.rsplit("-", 1)[0], load, task.memory_gb)
+        key = (scenario(task), load, task.memory_gb)
         groups[key] = groups.get(key, 0) + 1
-    for (scenario, load, memory), count in groups.items():
-        print(f"MEMORY-DEFERRED {scenario} {load}: {count} runs, estimated {memory:.1f} GiB each", flush=True)
+    for (name, load, memory), count in groups.items():
+        print(f"MEMORY-DEFERRED {name} {load}: {count} runs, estimated {memory:.1f} GiB each", flush=True)
     if options.dry_run:
         print("DRY RUN: no builds, simulator processes, or batch files were changed.")
         return 0
     if not (batch / "snapshot.ready").is_file():
-        parser.error("run experiments/run-h2.sh first to create a frozen batch")
+        parser.error("run experiments/run-workloads.sh first to create a frozen batch")
     for task in tasks:
         if not (batch / "bin" / task.program).is_file():
             parser.error(f"Missing frozen executable: {task.program}")
     script = Path(__file__).resolve()
-    command = [options.report_python, str(source / "experiments/analysis/h2-report.py"), str(batch)]
+    command = [options.report_python, str(source / "experiments/analysis/04-workloads.py"), "--results", str(batch)]
     return Scheduler(tasks, batch, source, options.jobs, options.memory_gb, options.reserve_gb,
                      report_command=command, provenance_script=script).run()
 

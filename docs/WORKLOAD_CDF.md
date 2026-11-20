@@ -46,5 +46,5 @@ comparable with each other. A cross-cutoff optimization needs a fixed target pop
 and throughput objective, plus uncertainty analysis.
 
 ```sh
-python3 -m unittest discover -s test/analysis -p test_workload_cdf.py -v
+ctest --test-dir build -R analysis-workload_cdf --output-on-failure
 ```

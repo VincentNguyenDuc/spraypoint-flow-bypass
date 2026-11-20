@@ -11,6 +11,20 @@ The public ns-3 `Retransmission` trace fires for retransmitted data from
 changes to a timeout value, not timer expirations. A `CA_LOSS` transition is also
 insufficient: repeated RTOs can occur while TCP remains in that state.
 
+## Output files
+
+Each run's `links.csv` has one row per directed port: `fabric` (router to router),
+`downlink` (router to host) and `host_nic` (host to router). `queue_drops` counts
+traffic-control drops at that port, and `device_drops` counts device transmit drops
+separately. The summary's `unattributed_router_queue` counts router drops whose output
+port could not be identified; check it before interpreting per-port totals. Fabric byte
+and arrival counters apply only to fabric rows.
+
+Each run's `flows.csv` records the counters below for every flow, through sink
+completion. FIN retries are excluded. `experiments/analysis/common.py` classifies a flow's
+timeout from them: a handshake retry if it had any SYN or SYN-ACK retransmission, a data
+timeout if `data_rto_timeouts > 0`.
+
 ## Counter definitions
 
 | Suggested CSV column | Source and meaning |

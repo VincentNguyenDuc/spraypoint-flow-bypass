@@ -33,8 +33,8 @@ experiments/01-smoke-baseline.sh
 experiments/01-smoke-bypass.sh
 experiments/02-small-sweep-baseline.sh
 experiments/02-small-sweep-bypass.sh
-# With H2 enabled, its scheduler also runs the main load sweep.
-if [[ ${RUN_H2:-0} != 1 ]]; then
+# With the workload sweep enabled, its queue also runs the main load sweep.
+if [[ ${RUN_WORKLOADS:-0} != 1 ]]; then
     experiments/03-load-sweep-baseline.sh
     experiments/03-load-sweep-bypass.sh
 fi
@@ -54,13 +54,14 @@ if [ ! -x experiments/analysis/.venv/bin/python ]; then
     experiments/analysis/.venv/bin/pip install --quiet -r experiments/analysis/requirements.txt
 fi
 
-if [[ ${RUN_H2:-0} == 1 ]]; then
-    step "H2 workload sweep"
-    bash experiments/run-h2.sh
+# The workload sweep (docs/WORKLOAD_SWEEP.md) takes far longer and more memory than the
+# rest, so it only runs with RUN_WORKLOADS=1.
+if [[ ${RUN_WORKLOADS:-0} == 1 ]]; then
+    step "Workload sweep"
+    bash experiments/run-workloads.sh
 fi
 
 step "Analysis"
-# H2 CDF workloads use h2-report.py for analysis.
 # analyze <script> <sweep>: runs an analysis script on one sweep of this batch, writing
 # to $BATCH_DIR/analysis/<sweep>-<name>/.
 analyze() {

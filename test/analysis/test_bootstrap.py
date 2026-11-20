@@ -14,7 +14,7 @@ import unittest
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location("h2_bootstrap", ROOT / "experiments/analysis/bootstrap.py")
+SPEC = importlib.util.spec_from_file_location("bootstrap", ROOT / "experiments/analysis/bootstrap.py")
 bootstrap = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = bootstrap
 SPEC.loader.exec_module(bootstrap)
@@ -162,7 +162,7 @@ class BootstrapTests(unittest.TestCase):
 
 class InputTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="h2-bootstrap-test-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="bootstrap-test-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
 
@@ -182,7 +182,7 @@ class InputTests(unittest.TestCase):
         return directory
 
     def csv_input(self):
-        source = self.root / "source" / "h2-runs.csv"
+        source = self.root / "source" / "runs.csv"
         source.parent.mkdir()
         with source.open("w", newline="") as stream:
             fields = ["scenario", "load", "seed", "bypass", "topology_fingerprint", "flow_fingerprint",

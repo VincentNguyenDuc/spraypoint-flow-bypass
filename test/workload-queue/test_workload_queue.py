@@ -15,7 +15,7 @@ import unittest
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location("h2_queue", ROOT / "experiments/h2-queue.py")
+SPEC = importlib.util.spec_from_file_location("workload_queue", ROOT / "experiments/workload-queue.py")
 queue = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = queue
 SPEC.loader.exec_module(queue)
@@ -50,7 +50,7 @@ with events.open('a') as f: f.write(json.dumps(['end', a.name, time.monotonic()]
 
 class QueueTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="h2-queue-test-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="workload-queue-test-")
         self.addCleanup(self.temporary.cleanup)
         self.batch = Path(self.temporary.name)
         self.source = self.batch / "source"
@@ -217,14 +217,16 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(len(tasks), 210)
         self.assertEqual(len({task.key for task in tasks}), 210)
         self.assertEqual(sum(t.program == "tcp-experiment" for t in tasks), 105)
-        heavy = next(t for t in tasks if t.experiment == "04-h2-fraction99-baseline" and "--load=0.7" in t.args)
+        heavy = next(t for t in tasks if t.experiment == "08-workloads-baseline"
+                     and queue.scenario(t) == "fraction99" and "--load=0.7" in t.args)
         self.assertGreater(heavy.memory_gb, 30)
 
     def test_old_common_is_not_sourced_and_plan_does_not_launch_workers(self):
-        with tempfile.TemporaryDirectory(prefix="h2-old-snapshot-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="workload-snapshot-") as temporary:
             source = Path(temporary)
             files = ["experiments/03-load-sweep-baseline.sh", "experiments/03-load-sweep-bypass.sh",
-                     "experiments/03-load-sweep-settings.sh", "experiments/04-h2-sweep.sh",
+                     "experiments/03-load-sweep-settings.sh", "experiments/08-workloads-baseline.sh",
+                     "experiments/08-workloads-bypass.sh", "experiments/08-workloads-settings.sh",
                      "src/tcp/tcp-experiment.h", "experiments/workloads/websearch.cdf",
                      "experiments/workloads/hadoop.cdf"]
             for filename in files:
