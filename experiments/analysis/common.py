@@ -301,7 +301,8 @@ def load_flows(runs, trim=TRIM_FRACTION):
 
 
 # The per-flow TCP counters that tcp-experiment writes to flows.csv (see
-# docs/TCP_DIAGNOSTICS.md).  Runs from before they existed have none of them.
+# src/tcp/tcp-diagnostics.h and the report's Appendix B).  Runs from before they existed
+# have none of them.
 TIMEOUT_COLUMNS = ["data_rto_timeouts", "syn_retransmissions", "syn_ack_retransmissions"]
 
 

@@ -93,7 +93,9 @@ def metrics(run, scenario):
         row[f"{name}_mean_goodput_gbps"] = float(subset.goodput.mean())
         row[f"{name}_p01_goodput_gbps"] = quantile(subset.goodput, 0.01)
         row[f"{name}_data_retransmitted_share"] = float((subset.data_retransmissions > 0).mean())
-        row[f"{name}_timeout_share"] = float(subset.timeout.isin(["data", "handshake", "unfinished"]).mean())
+        # NaN for runs from before the per-flow TCP counters.
+        row[f"{name}_timeout_share"] = (float(subset.timeout.isin(["data", "handshake", "unfinished"]).mean())
+                                        if subset.timeout.notna().all() else float("nan"))
     return row
 
 

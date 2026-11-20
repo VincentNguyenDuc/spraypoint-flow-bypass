@@ -54,7 +54,7 @@ if [ ! -x experiments/analysis/.venv/bin/python ]; then
     experiments/analysis/.venv/bin/pip install --quiet -r experiments/analysis/requirements.txt
 fi
 
-# The workload sweep (docs/WORKLOAD_SWEEP.md) takes far longer and more memory than the
+# The workload sweep (see the README) takes far longer and more memory than the
 # rest, so it only runs with RUN_WORKLOADS=1.
 if [[ ${RUN_WORKLOADS:-0} == 1 ]]; then
     step "Workload sweep"

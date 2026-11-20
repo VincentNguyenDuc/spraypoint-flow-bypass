@@ -6,7 +6,7 @@
 # Hadoop flow-size distributions with small-flow cutoffs of 10 KB, 100 KB and 1 MB.  The
 # default workload itself is 03-load-sweep.  Large CDF scenarios need far more memory
 # than the default workload, so run these through experiments/run-workloads.sh, which
-# admits runs by their estimated memory; see docs/WORKLOAD_SWEEP.md.
+# admits runs by their estimated memory; see the README.
 NETWORK=(--nodes=256 --degree=16 --waypoints=4 --nextHops=2 --hostsPerRouter=4)
 WORKLOAD=(--flows=0 --spanMs=4 --releaseDelayUs=1000)
 SCENARIOS=(fraction95 fraction99 size50k size100k web10k web100k web1m hadoop10k hadoop100k hadoop1m)

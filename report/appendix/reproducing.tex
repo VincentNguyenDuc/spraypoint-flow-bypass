@@ -10,7 +10,7 @@ Everything in this report comes from the repository. The README describes the se
   \item \file{tcp-experiment} and \file{tcp-bypass}: the ns-3 simulation without and with the bypass.
 \end{itemize}
 
-\paragraph{Experiments.} Each experiment is a script in \file{experiments/}, which runs its programs and writes one folder per run under \file{experiments/results/<machine>/<batch>/<script>/}, named after the code commit that produced it. \file{REPRODUCE.sh} runs everything, and \file{REMOTE.sh} runs it on a server over SSH. Rerunning a script skips finished runs.
+\paragraph{Experiments.} Each experiment is a script in \file{experiments/}, which runs its programs and writes one folder per run under \file{experiments/results/<machine>/<batch>/<script>/}, named after the code commit that produced it. \file{REPRODUCE.sh} runs everything except the workload sweep, which it adds with \texttt{RUN\_WORKLOADS=1} (\appref{app:workloads}), and \file{REMOTE.sh} runs it on a server over SSH. Rerunning a script skips finished runs.
 
 \paragraph{Figures and tables.} \file{experiments/analysis/report_figures.py} reads those batches and writes every figure in \file{report/figures/} and every generated table in \file{report/tables/}. The scripts in \file{experiments/analysis/} run the same analyses on any batch: \file{01-baseline.py} and \file{02-bypass-comparison.py} for any sweep (\texttt{--sweep}), and \file{03-model-check.py} for \file{05} and \file{06} together.
 

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Runs the workload sweep (08-workloads and the default-workload 03-load-sweep) through
 # experiments/workload-queue.py, from a snapshot of the sources and programs frozen into
-# the batch, so later edits to the working tree don't change it.  See
-# docs/WORKLOAD_SWEEP.md.
+# the batch, so later edits to the working tree don't change it.  See the README.
 # RESULTS_BATCH=<name> JOBS=8 bash experiments/run-workloads.sh [--dry-run] [--memory-gb N]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -35,7 +34,7 @@ if [[ ! -f $BATCH_DIR/snapshot.ready ]]; then
     mkdir -p "$SNAPSHOT" "$BATCH_DIR/bin"
     tar -cf - src cmake CMakeLists.txt test experiments/*.sh experiments/workloads \
         experiments/analysis/cli.py experiments/analysis/common.py experiments/analysis/04-workloads.py \
-        README.md docs/WORKLOAD_SWEEP.md | tar -xf - -C "$SNAPSHOT"
+        README.md | tar -xf - -C "$SNAPSHOT"
     cp build/bin/tcp-experiment build/bin/tcp-bypass "$BATCH_DIR/bin/"
     mkdir -p "$BATCH_DIR/lib"
     cp third_party/ns-3-install/lib/libns3*.so "$BATCH_DIR/lib/"

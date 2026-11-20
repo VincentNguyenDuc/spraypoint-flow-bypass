@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Run the frozen workload sweep (08-workloads, plus 03-load-sweep for the default
-workload) through one CPU- and memory-limited process queue.  See docs/WORKLOAD_SWEEP.md."""
+workload) through one CPU- and memory-limited process queue.  See the README."""
 import argparse
 import dataclasses
 import datetime

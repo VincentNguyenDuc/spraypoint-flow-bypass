@@ -1,0 +1,46 @@
+\section{Simulator details}
+\label{app:simulator}
+
+\subsection{Traffic patterns}
+
+\file{src/tcp/traffic-pattern.h} picks each flow's endpoints, independently of ns-3 and of the routing mode. Flows arrive as a Poisson process at rate $\text{load} \cdot H \cdot C / B$, for $H$ hosts, per-host link rate $C$ and mean flow size $B$; each arrival draws its gap, then its endpoints, then its size, from a workload seed. The selector never sees the routing mode, so a baseline run and a bypass run with the same seed, pattern and settings carry identical flows. Different patterns consume different numbers of random draws, so equal seeds across patterns do not give the same arrivals.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l L@{}}
+\toprule
+Pattern & Endpoints \\
+\midrule
+\texttt{uniform} & Uniform source, then uniform destination among the other hosts. \\
+\texttt{permutation} & Uniform source $s$, destination $(s + \text{shift}) \bmod H$. \\
+\texttt{router-permutation} & Uniform host, sending to a uniform host on its router's partner in a random matching: the same matching as the flow-level checker's first permutation for the seed. Our permutation experiments use this one. \\
+\texttt{hotspot} & Destination among the first $K$ hosts with probability $p$, otherwise among the rest. \\
+\texttt{incast} & One fixed receiver, from a fixed set of $F$ senders (all other hosts by default). \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The load always counts all hosts' egress capacity, so a hotspot or incast receiver can be offered more than its link carries; the concentration is explicit rather than a hidden drop in total load. Each destination has 55{,}535 listener ports, one per flow, so every flow keeps its own connection; generation fails rather than reusing ports when a destination runs out. \file{test/traffic-pattern} checks that \texttt{uniform} reproduces the original generator exactly, including its random-number state.
+
+\subsection{Per-flow TCP counters}
+
+Every TCP socket is a thin subclass of ns-3's \texttt{TcpSocketBase} (\file{src/tcp/tcp-diagnostics.h}) that observes transmissions and the retransmission timer without changing TCP's behavior. Each flow's row in \file{flows.csv} records, up to the moment its receiver has all its bytes:
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{0.47\linewidth} L@{}}
+\toprule
+Column & Meaning \\
+\midrule
+\texttt{data\_rto\_timeouts} & Times the data retransmission timer fired. \\
+\texttt{data\_retransmissions} & Retransmitted data segments, split by cause into the next three. \\
+\texttt{data\_rto\_retransmissions} & \quad sent by the retransmission timer, \\
+\texttt{data\_fast\_recovery\_retransmissions} & \quad sent in fast recovery, \\
+\texttt{data\_other\_retransmissions} & \quad and the rest. \\
+\texttt{syn\_retransmissions}, \newline \texttt{syn\_ack\_retransmissions} & Handshake retries. \\
+\texttt{handshake\_timeouts} & Left empty: ns-3 exposes no handshake-timer event. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+A SYN is resent only when its timer fires, and a SYN-ACK only after a timer or a duplicate SYN, so the analysis counts a flow as having a \emph{handshake timeout} if it retried its handshake at all, and a \emph{data timeout} if its data timer fired (\file{experiments/analysis/common.py}). \file{links.csv} has one row per directed port, fabric, router-to-host and host-to-router, with its load, queue occupancy, and queue and device drops; the analysis checks that the per-port drops add up to the run's totals.

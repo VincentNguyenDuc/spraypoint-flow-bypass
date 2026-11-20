@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Paired cluster bootstrap for the workload sweep's (H2) p99s; see docs/STATISTICS.md
-for estimands and limits."""
+"""Paired cluster bootstrap for the workload sweep's (H2) p99s.  It resamples whole topology
+seeds with both modes together, and offers two estimands: the mean of each run's p99
+(mean-run-p99) or the p99 of the pooled flows (pooled-p99).  With few seeds the intervals
+are exploratory; see the report's appendix on the workload sweep."""
 
 import argparse
 import csv

@@ -1,7 +1,7 @@
 \section{Methodology}
 \label{sec:method}
 
-We use two tools. A packet-level \textbf{ns-3 simulation}~\cite{ns3} measures latency and throughput with real queues and TCP. A \textbf{flow-level checker} computes path lengths, path counts and worst-case throughput directly from the routing tables, without packets, at both our scale and the paper's. Both use the same Spraypoint implementation (\file{src/spraypoint/}), which we first validated against the paper (\secref{sec:validation}).
+We use two tools. A packet-level \textbf{ns-3 simulation}~\cite{ns3} measures latency and throughput with real queues and TCP; following feedback on our proposal, we simulate the fabric rather than emulate it in Mininet, which the question does not need. A \textbf{flow-level checker} computes path lengths, path counts and worst-case throughput directly from the routing tables, without packets, at both our scale and the paper's. Both use the same Spraypoint implementation (\file{src/spraypoint/}), which we first validated against the paper (\secref{sec:validation}).
 
 \subsection{Simulated network}
 
@@ -16,7 +16,7 @@ Flows arrive as a Poisson process for 4\,ms. The \emph{offered load} is the frac
 Flows go between hosts in one of two patterns:
 \begin{itemize}
   \item \textbf{Uniform:} source and destination hosts are drawn at random. This is the realistic case, and the one most of our sweeps use.
-  \item \textbf{Permutation:} every router's hosts send only to the hosts of one partner router, drawn as a random permutation. This is the worst case for throughput~\cite{namyar}, and the case the models describe. The permutation is the same one the flow-level checker uses as its first permutation for the same seed, so simulated pairs line up with predicted ones.
+  \item \textbf{Permutation:} every router's hosts send only to the hosts of one partner router, drawn as a random permutation. This is the worst case for throughput~\cite{namyar}, and the case the models describe. \appref{app:simulator} describes these and the simulator's other traffic patterns. The permutation is the same one the flow-level checker uses as its first permutation for the same seed, so simulated pairs line up with predicted ones.
 \end{itemize}
 
 \subsection{Experiments}
@@ -43,7 +43,7 @@ Experiment & Traffic & Network & What varies \\
 
 \subsection{Metrics}
 
-\paragraph{Small-flow latency.} The \textbf{median} completion time, the \textbf{timeout rate} (the share of small flows whose connection waited for a data retransmission timeout or retried its handshake, counted per flow by instrumenting each TCP socket in the simulator), and the \textbf{clean p99} (the p99 of flows that did not, which is queueing alone).
+\paragraph{Small-flow latency.} The \textbf{median} completion time, the \textbf{timeout rate} (the share of small flows whose connection waited for a data retransmission timeout or retried its handshake, counted per flow by instrumenting each TCP socket in the simulator; \appref{app:simulator}), and the \textbf{clean p99} (the p99 of flows that did not, which is queueing alone).
 
 \paragraph{Cost to other traffic.} Each large flow's \textbf{goodput}, its bytes over its completion time: the mean and the slowest 1\%. Under permutation traffic, the \textbf{throughput kept} per router pair, its large-flow goodput with the bypass over the same pair's without it, and its minimum over pairs, the \textbf{worst pair}.
 
