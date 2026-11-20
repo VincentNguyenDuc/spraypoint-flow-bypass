@@ -32,7 +32,7 @@ if [[ ! -f $BATCH_DIR/snapshot.ready ]]; then
     mkdir -p "$SNAPSHOT" "$BATCH_DIR/bin"
     tar -cf - src cmake CMakeLists.txt test experiments/*.sh experiments/workloads \
         experiments/analysis/common.py experiments/analysis/h2-report.py \
-        README.md docs/TODO.md docs/ANALYSIS.md docs/OVERHEAD.md | tar -xf - -C "$SNAPSHOT"
+        README.md docs/ANALYSIS.md docs/OVERHEAD.md | tar -xf - -C "$SNAPSHOT"
     cp build/bin/tcp-experiment build/bin/tcp-bypass "$BATCH_DIR/bin/"
     mkdir -p "$BATCH_DIR/lib"
     cp third_party/ns-3-install/lib/libns3*.so "$BATCH_DIR/lib/"

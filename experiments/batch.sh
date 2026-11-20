@@ -7,7 +7,7 @@
 #   different flows on different platforms.
 # - <code commit> is the last commit that changed the simulator, the flow-level model
 #   check (test/bypass-model and the solver it shares with the verifier), or the
-#   experiment settings, so commits to the notebooks or docs keep using the same
+#   experiment settings, so commits to the analysis scripts or docs keep using the same
 #   batch.  With uncommitted changes to those, it ends in "-dirty".
 # - Runs continue the newest batch for the same code on this machine, so an interrupted
 #   experiment picks up where it stopped.  Set NEW_BATCH=1 to start a new batch

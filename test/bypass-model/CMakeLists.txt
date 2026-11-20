@@ -1,4 +1,4 @@
-# Checks the bypass models of the report (docs/report/, Section 5) against the routing
+# Checks the bypass models of the report (report/, Section 5) against the routing
 # tables: path lengths, edge-disjoint shortest paths, and oversubscription as the
 # bypassed share grows.  It needs no ns-3.
 find_package(Threads REQUIRED)

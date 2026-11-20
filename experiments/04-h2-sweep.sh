@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run one workload independently so the existing notebooks can compare its modes.
+# Run one workload independently so the analysis scripts can compare its modes.
 # Usage: 04-h2-sweep.sh <scenario> <baseline|bypass>
 set -euo pipefail
 scenario=${1:?specify an H2 scenario; see README}

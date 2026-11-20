@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks the bypass models of the report (docs/report/, Section 5) against the routing tables,
+# Checks the bypass models of the report (report/, Section 5) against the routing tables,
 # with no ns-3: shortest distances, edge-disjoint shortest paths, and oversubscription
 # under random matchings as the bypassed share f grows, with ECMP and with the LP.  Runs
 # at the paper's scale and at the load sweeps' scale.  Each run uses every core, so

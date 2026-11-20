@@ -27,8 +27,8 @@ flowchart TD
 - **TCP bypass (`src/tcp-bypass/`):** the same experiment, except that small flows can skip the spray step. It adds only that routing decision, so flows, TCP, and measurements stay the same as the baseline.
 - **Tests (`test/`):** check the layers from outside. The verifier compares the core with the paper, without ns-3. `bypass-model` checks the bypass's models on the same tables, also without ns-3, and its output is experiment data (`05-bypass-model`). Other tests check the programs' behavior.
 - **Experiments (`experiments/`):** each script fixes the settings for one experiment, runs its program, and writes to `experiments/results/<machine>/<batch>/<script name>/`.
-- **Analysis (`experiments/analysis/`):** notebooks that read one batch of `experiments/results/`: one for the baseline, one comparing it with the bypass, and one comparing the flow-level model check with the permutation sweep.
-- **Report (`report/`):** the LaTeX report. `experiments/analysis/report_figures.py` reads pinned batches through the same helpers as the notebooks and writes the report's figures and tables, so they always match the data.
+- **Analysis (`experiments/analysis/`):** Python scripts that read one batch of `experiments/results/` and write tables and figures: one for the baseline, one comparing it with the bypass, and one comparing the flow-level model check with the permutation sweep.
+- **Report (`report/`):** the LaTeX report. `experiments/analysis/report_figures.py` reads pinned batches through the same helpers as the analysis scripts and writes the report's figures and tables, so they always match the data.
 
 ## Extending the experiment
 
@@ -49,21 +49,21 @@ A new routing variant can follow the same pattern as a separate program, leaving
 
 ## Experiments
 
-An experiment is a script that says which runs to do. Data moves one way, from scripts to results to notebooks, so analysis can be rerun without rerunning simulations.
+An experiment is a script that says which runs to do. Data moves one way, from experiment scripts to results to analysis, so analysis can be rerun without rerunning simulations.
 
 ```mermaid
 flowchart LR
     settings["NN-*-settings.sh<br/>settings shared by sweeps"] --> script
     common["common.sh<br/>how to run"] --> script
     script["NN-*.sh<br/>which runs to do"] -->|"runs the program"| results["results/<br/>one folder per run"]
-    results --> analysis["analysis/<br/>notebooks"]
+    results --> analysis["analysis/<br/>scripts"]
     results --> report["report/<br/>figures, tables, report"]
 ```
 
 - **Scripts (`NN-*.sh`):** each one is a complete, repeatable experiment, numbered in the order to run them and named for what it runs: `smoke` is a quick check, `small-sweep` is a fast sweep on a small network, and `load-sweep` is the larger measurement. To add an experiment, copy a script and change its settings.
 - **Shared logic (`common.sh`):** builds the program and runs the simulations, in parallel if asked. It skips finished runs, so an interrupted experiment continues where it stopped.
 - **Results (`results/<machine>/<batch>/<script name>/<run name>/`):** each run's data, plus the exact options, commit, and machine that produced it. Git ignores the contents. `<machine>` is `local`, or `remote` for runs from `REMOTE.sh`. A batch is named `<date>_<time>_<code commit>`, where the code commit is the last one to change `src/`, `cmake/`, `CMakeLists.txt`, the numbered experiment scripts, or the flow-level programs in `test/spraypoint-verifier/` and `test/bypass-model/`. Scripts keep adding to the newest batch for the same code, so a code change starts a new batch and old results never mix with new ones. `NEW_BATCH=1` starts one anyway. See `experiments/batch.sh`.
-- **Analysis (`analysis/`):** notebooks that read one batch, using whichever of its runs have finished.
+- **Analysis (`analysis/`):** scripts that read one batch, using whichever of its runs have finished.
 - **Workloads (`workloads/`):** published flow-size distributions that experiments can use.
 
 ## Comparing experiments

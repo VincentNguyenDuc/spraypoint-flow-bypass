@@ -30,7 +30,7 @@ elif ! build_log=$(cmake -S . -B build 2>&1 && cmake --build build --target "$PR
 fi
 
 COMMIT=$(git rev-parse --short HEAD)
-# Only what affects results counts: running notebooks also changes tracked files.
+# Only uncommitted changes to what affects results count, not edits to the docs or analysis.
 if [[ $CODE_COMMIT == *-dirty ]]; then
     COMMIT="$COMMIT (uncommitted changes)"
     echo "warning: the working tree has uncommitted changes" >&2

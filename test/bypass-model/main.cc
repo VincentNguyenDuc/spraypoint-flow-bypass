@@ -1,9 +1,9 @@
-// Checks the bypass models of the report (docs/report/, Section 5) against the routing
+// Checks the bypass models of the report (report/, Section 5) against the routing
 // tables, with no ns-3:
 //
-// - Model B.1: shortest distances between routers, the hops a bypassed flow takes.
-// - Model B.2: c, the edge-disjoint shortest paths between a pair.
-// - Oversubscription with the bypass, under random matchings as the share f of each
+// - Step 4: shortest distances between routers, the hops a bypassed flow takes.
+// - Step 5: c, the edge-disjoint shortest paths between a pair.
+// - Steps 6 and 7: oversubscription with the bypass, under random matchings as the share f of each
 //   pair's bytes on the bypass grows, both with ECMP splitting and with the best split
 //   (the LP), and which pairs become the bottleneck.
 //
@@ -293,7 +293,7 @@ main(int argc, char* argv[])
         const double pairs = n * (n - 1);
         meanDistance /= pairs;
 
-        // Model B.1: P(L <= k) = 1 - exp(-d^k / n).
+        // Step 4: P(L <= k) = 1 - exp(-d^k / n).
         const auto modelAtMost = [&](uint32_t k) {
             return k == 0 ? 0.0 : 1 - std::exp(-std::pow(d, k) / n);
         };
@@ -310,7 +310,7 @@ main(int argc, char* argv[])
                 }
             }
         }
-        // Model B.2: c = 1 at distance 1, and Poisson(d^2/n) given c >= 1 at distance 2.
+        // Step 5: c = 1 at distance 1, and Poisson(d^2/n) given c >= 1 at distance 2.
         {
             std::ofstream file(out / "shortest-paths.csv");
             file << "distance,c,pairs,fraction_of_distance,model_fraction_of_distance\n";
@@ -332,7 +332,7 @@ main(int argc, char* argv[])
             }
         }
 
-        // Model 3: one task per matching, bypass mode and share; share 0 is the
+        // Steps 6 and 7: one task per matching, bypass mode and share; share 0 is the
         // baseline, shared by both modes.
         std::vector<Task> tasks;
         for (uint32_t k = 0; k < options.matchings; ++k)
@@ -456,7 +456,7 @@ main(int argc, char* argv[])
               static_cast<unsigned long long>(options.seed),
               options.matchings,
               options.lpMatchings);
-        Print(summary, "\n[distance] shortest hops over all pairs vs. Model B.1\n");
+        Print(summary, "\n[distance] shortest hops over all pairs vs. Step 4\n");
         Print(summary, "  %8s %10s %10s\n", "distance", "measured", "model");
         for (uint32_t k = 1; k <= kMaxDistance; ++k)
         {

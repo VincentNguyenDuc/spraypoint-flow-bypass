@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Reproduces everything from a fresh clone: builds the programs, runs all tests, runs
-# every experiment, and regenerates the analysis notebooks.
+# every experiment, and writes the analysis of each sweep.
 #
 # It stops at the first failure.  Rerunning is safe and continues where it stopped,
 # since finished experiment runs are skipped, unless the code changed or NEW_BATCH=1
@@ -49,7 +49,7 @@ experiments/06-permutation-bypass.sh
 JOBS=$BIG_JOBS experiments/07-share-sweep-baseline.sh
 JOBS=$BIG_JOBS experiments/07-share-sweep-bypass.sh
 
-if [ ! -x experiments/analysis/.venv/bin/jupyter ]; then
+if [ ! -x experiments/analysis/.venv/bin/python ]; then
     python3 -m venv experiments/analysis/.venv
     experiments/analysis/.venv/bin/pip install --quiet -r experiments/analysis/requirements.txt
 fi
@@ -61,18 +61,17 @@ fi
 
 step "Analysis"
 # H2 CDF workloads use h2-report.py for analysis.
-# run_notebook <sweep> <notebook>: executes a notebook on one sweep of this batch.
-run_notebook() {
-    RESULTS_DIR=$BATCH_DIR SWEEP=$1 experiments/analysis/.venv/bin/jupyter nbconvert \
-        --to notebook --execute --ExecutePreprocessor.timeout=3600 --output-dir "$BATCH_DIR/analysis" \
-        --output "$1-$(basename "$2")" "$2"
+# analyze <script> <sweep>: runs an analysis script on one sweep of this batch, writing
+# to $BATCH_DIR/analysis/<sweep>-<name>/.
+analyze() {
+    experiments/analysis/.venv/bin/python "experiments/analysis/$1" --sweep "$2" --results "$BATCH_DIR"
 }
 for sweep in 02-small-sweep 03-load-sweep 04-oversubscription 06-permutation 07-share-sweep; do
-    run_notebook "$sweep" experiments/analysis/01-baseline.ipynb
-    run_notebook "$sweep" experiments/analysis/02-bypass-comparison.ipynb
+    analyze 01-baseline.py "$sweep"
+    analyze 02-bypass-comparison.py "$sweep"
 done
 # Compares 06-permutation with the flow-level check in 05-bypass-model.
-run_notebook 06-permutation experiments/analysis/03-model-check.ipynb
+analyze 03-model-check.py 06-permutation
 
 step "Report"
 # The report's figures and tables come from the batches pinned in report_figures.py.
@@ -84,4 +83,4 @@ else
 fi
 
 step "Done"
-echo "Results and the executed notebooks are in ${BATCH_DIR#"$ROOT/"}/."
+echo "Results and their analysis are in ${BATCH_DIR#"$ROOT/"}/."

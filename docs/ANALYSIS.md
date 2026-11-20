@@ -3,7 +3,7 @@
 The small-flow bypass does what H1 predicts. Small flows between adjacent routers drop from 3.3 fabric hops to 1, their median FCT falls by about 45%, their p99 without timeouts falls by 20–33%, and half as many of them wait for a timeout. The shortest-path bypass also speeds up every other small flow, by about 24% at the median. Up to load 0.5, neither bypass shows the cost that H2 predicts. Large-flow throughput, fan-in and the busiest links barely move, because small flows carry only about 8% of the bytes. So H2 is still untested, not refuted.
 
 These are M2 results. See the [report](../report/) for the later modelling and
-traffic sweeps and the [TODO list](TODO.md) for remaining work.
+traffic sweeps.
 
 ## Data
 
@@ -12,7 +12,7 @@ traffic sweeps and the [TODO list](TODO.md) for remaining work.
 - **Second sweep:** `02-small-sweep`, with 64 routers of degree 8. It is the only sweep that reaches load 0.7. It has twice the share of adjacent pairs (11% of flows), covers 5 seeds, and has 60 runs.
 - **Workload:** 90% of flows are 10 KB and 10% are 1 MB, between uniform random hosts. Each flow opens a new TCP connection, with a 1 ms minimum RTO. See the [README](../README.md) for the other settings.
 - **Health:** every flow finished in every run, with no TTL or no-route drops, and all three modes run the same flows.
-- **Where each number comes from:** the numbers below come from the committed notebooks [01-baseline.ipynb](../experiments/analysis/01-baseline.ipynb) and [02-bypass-comparison.ipynb](../experiments/analysis/02-bypass-comparison.ipynb), which were run on the load sweep. Numbers marked *small sweep* come from the same notebooks run with `SWEEP=02-small-sweep`.
+- **Where each number comes from:** the numbers below come from [01-baseline.py](../experiments/analysis/01-baseline.py) and [02-bypass-comparison.py](../experiments/analysis/02-bypass-comparison.py) run on the load sweep. Numbers marked *small sweep* come from the same scripts run with `--sweep 02-small-sweep`.
 
 ## Reading the tail
 
@@ -90,7 +90,7 @@ H3 also predicts that this wider reach raises the hotspot risk. The next section
   Both are consistent with direct links getting a little busier, but both are small.
 - **No crossover so far.** By every measure here, the bypass is no worse than the baseline at every load.
 
-**Why H2 is untested, not refuted.** The bypass only moves small flows, which carry 8% of the bytes, and small flows between adjacent routers carry 0.5%. That is too little traffic to create the hotspot the paper warns about. Testing H2 needs workloads where small flows carry more of the bytes, as [TODO.md](TODO.md) lists.
+**Why H2 is untested, not refuted.** The bypass only moves small flows, which carry 8% of the bytes, and small flows between adjacent routers carry 0.5%. That is too little traffic to create the hotspot the paper warns about. Testing H2 needs workloads where small flows carry more of the bytes.
 
 ## High load: the small sweep at 0.7
 
@@ -120,13 +120,14 @@ remain unperformed; H4 is supported only as a conditional design argument.
 
 ## Reproducing
 
-To refresh the committed notebooks from a batch:
+To regenerate these numbers from the batch:
 
 ```bash
 ./REMOTE.sh fetch
 cd experiments/analysis
-RESULTS_MACHINE=remote SWEEP=03-load-sweep .venv/bin/jupyter nbconvert \
-    --to notebook --execute --inplace 01-baseline.ipynb 02-bypass-comparison.ipynb
+BATCH=../results/remote/2026-11-07_120750_5770a94
+.venv/bin/python 01-baseline.py --results $BATCH
+.venv/bin/python 02-bypass-comparison.py --results $BATCH
 ```
 
-Set `SWEEP=02-small-sweep` for the small-sweep numbers. `./REPRODUCE.sh` also writes executed copies of both notebooks for both sweeps into the batch's `analysis/` folder.
+Add `--sweep 02-small-sweep` for the small-sweep numbers. Each script writes its tables and figures to the batch's `analysis/` folder. `./REPRODUCE.sh` runs both scripts on every sweep.

@@ -1,5 +1,5 @@
 """Loads experiment results from one batch,
-experiments/results/<machine>/<batch>/<experiment>/<run>/, for the notebooks."""
+experiments/results/<machine>/<batch>/<experiment>/<run>/, for the analysis scripts."""
 
 import os
 import re
@@ -13,9 +13,9 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 RESULTS_ROOT = ROOT / "experiments" / "results"
 
-# The sweep the notebooks analyze: 03-load-sweep, which keeps the full-scale design's
+# The sweep the analysis scripts read: 03-load-sweep, which keeps the full-scale design's
 # proportions, or 02-small-sweep, 04-oversubscription, 06-permutation, 07-share-sweep,
-# or 01-smoke for a quick check that the notebooks run, though its runs are too short
+# or 01-smoke for a quick check that the scripts run, though its runs are too short
 # for tail numbers.  A script that reads several sweeps calls select for each.
 SWEEP = os.environ.get("SWEEP", "03-load-sweep")
 BASELINE_EXPERIMENT = f"{SWEEP}-baseline"
@@ -597,3 +597,55 @@ def plot_metric_by_mode(flows, metric, ylabel, table=fct_table, classes=CLASSES)
         figure.tight_layout()
         figures.append(figure)
     return figures
+
+
+def output_dir(script):
+    """Where an analysis script writes: ANALYSIS_DIR if set, otherwise
+    <batch>/analysis/<sweep>-<script>/."""
+    if "ANALYSIS_DIR" in os.environ:
+        return Path(os.environ["ANALYSIS_DIR"])
+    return RESULTS / "analysis" / f"{SWEEP}-{script}"
+
+
+class Output:
+    """Collects one analysis script's results in a folder: README.md with the headings,
+    notes and tables in order, one CSV per table, and one PNG per figure."""
+
+    def __init__(self, directory, title):
+        self.directory = Path(directory)
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.lines = [f"# {title}", ""]
+        self.figures = 0
+
+    def heading(self, text, level=2):
+        self.lines += ["#" * level + " " + text, ""]
+
+    def text(self, text):
+        """A paragraph, also printed so a run shows its progress."""
+        print(text)
+        self.lines += [text, ""]
+
+    def table(self, name, frame, float_format="{:,.2f}"):
+        frame.to_csv(self.directory / f"{name}.csv")
+        with pd.option_context("display.float_format", float_format.format, "display.width", 200,
+                               "display.max_columns", None, "display.max_rows", None):
+            rendered = frame.to_string()
+        self.lines += [f"`{name}.csv`", "", "```", rendered, "```", ""]
+
+    def figure(self, figure, name=None):
+        if name is None:
+            self.figures += 1
+            name = f"figure-{self.figures:02d}"
+        figure.savefig(self.directory / f"{name}.png", bbox_inches="tight")
+        plt.close(figure)
+        self.lines += [f"![{name}]({name}.png)", ""]
+
+    def figures_from(self, figures, name):
+        for i, figure in enumerate(figures, 1):
+            self.figure(figure, name if len(figures) == 1 else f"{name}-{i}")
+
+    def save(self):
+        path = self.directory / "README.md"
+        path.write_text("\n".join(self.lines))
+        print(f"Wrote {path}")
+

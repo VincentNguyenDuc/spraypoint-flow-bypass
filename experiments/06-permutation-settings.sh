@@ -1,6 +1,6 @@
 # Settings shared by the permutation sweeps, so that their results can be compared.
 #
-# Checks the oversubscription models of the report (docs/report/, Section 5) below and
+# Checks the oversubscription models of the report (report/, Section 5) below and
 # around saturation.  Every router
 # sends only to its partner in a random matching, the same matching as matching 0 of
 # 05-bypass-model.sh, so the flow-level predictions line up pair by pair.  On the
