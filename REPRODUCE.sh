@@ -78,7 +78,7 @@ step "Report"
 # The report's figures and tables come from the batches pinned in report_figures.py.
 experiments/analysis/.venv/bin/python experiments/analysis/report_figures.py
 if command -v latexmk > /dev/null; then
-    (cd docs/report && latexmk -interaction=nonstopmode)
+    (cd report && latexmk -interaction=nonstopmode)
 else
     echo "latexmk not found; skipping the report PDF"
 fi

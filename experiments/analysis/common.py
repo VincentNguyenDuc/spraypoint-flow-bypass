@@ -143,7 +143,7 @@ class Run:
     def share(self):
         """f, the small flows' share of the bytes offered, for the two-size workload.  It
         is the share the bypass moves, so it is what the models in
-        the report's models (docs/report/) call f.  NaN for a flow-size CDF."""
+        the report's models (report/) call f.  NaN for a flow-size CDF."""
         if "flowSizeCdf" in self.options:
             return float("nan")
         # The simulator's defaults, for runs that don't set them.

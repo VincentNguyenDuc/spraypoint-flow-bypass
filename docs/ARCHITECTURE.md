@@ -28,7 +28,7 @@ flowchart TD
 - **Tests (`test/`):** check the layers from outside. The verifier compares the core with the paper, without ns-3. `bypass-model` checks the bypass's models on the same tables, also without ns-3, and its output is experiment data (`05-bypass-model`). Other tests check the programs' behavior.
 - **Experiments (`experiments/`):** each script fixes the settings for one experiment, runs its program, and writes to `experiments/results/<machine>/<batch>/<script name>/`.
 - **Analysis (`experiments/analysis/`):** notebooks that read one batch of `experiments/results/`: one for the baseline, one comparing it with the bypass, and one comparing the flow-level model check with the permutation sweep.
-- **Report (`docs/report/`):** the LaTeX report. `experiments/analysis/report_figures.py` reads pinned batches through the same helpers as the notebooks and writes the report's figures and tables, so they always match the data.
+- **Report (`report/`):** the LaTeX report. `experiments/analysis/report_figures.py` reads pinned batches through the same helpers as the notebooks and writes the report's figures and tables, so they always match the data.
 
 ## Extending the experiment
 
@@ -57,7 +57,7 @@ flowchart LR
     common["common.sh<br/>how to run"] --> script
     script["NN-*.sh<br/>which runs to do"] -->|"runs the program"| results["results/<br/>one folder per run"]
     results --> analysis["analysis/<br/>notebooks"]
-    results --> report["docs/report/<br/>figures, tables, report"]
+    results --> report["report/<br/>figures, tables, report"]
 ```
 
 - **Scripts (`NN-*.sh`):** each one is a complete, repeatable experiment, numbered in the order to run them and named for what it runs: `smoke` is a quick check, `small-sweep` is a fast sweep on a small network, and `load-sweep` is the larger measurement. To add an experiment, copy a script and change its settings.

@@ -2,7 +2,7 @@
 
 The small-flow bypass does what H1 predicts. Small flows between adjacent routers drop from 3.3 fabric hops to 1, their median FCT falls by about 45%, their p99 without timeouts falls by 20–33%, and half as many of them wait for a timeout. The shortest-path bypass also speeds up every other small flow, by about 24% at the median. Up to load 0.5, neither bypass shows the cost that H2 predicts. Large-flow throughput, fan-in and the busiest links barely move, because small flows carry only about 8% of the bytes. So H2 is still untested, not refuted.
 
-These are M2 results. See the [report](report/) for the later modelling and
+These are M2 results. See the [report](../report/) for the later modelling and
 traffic sweeps and the [TODO list](TODO.md) for remaining work.
 
 ## Data

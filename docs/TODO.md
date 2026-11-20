@@ -1,6 +1,6 @@
 # TODO
 
-Follow-up work from the [report](report/). Use the shortest-path bypass for the new policy experiments and keep all three modes in the H2 evaluation.
+Follow-up work from the [report](../report/). Use the shortest-path bypass for the new policy experiments and keep all three modes in the H2 evaluation.
 
 ## Experiments
 

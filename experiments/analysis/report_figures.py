@@ -2,7 +2,7 @@
 
     experiments/analysis/.venv/bin/python experiments/analysis/report_figures.py
 
-Figures go to docs/report/figures/ as PDF, and tables to docs/report/tables/ as LaTeX
+Figures go to report/figures/ as PDF, and tables to report/tables/ as LaTeX
 tabular fragments that the report \\inputs.  Both are committed, since the results are
 not.  The batches are pinned below, so the report always shows the same runs; a figure
 whose batch is missing is skipped with a warning, so the rest still regenerate.
@@ -31,7 +31,7 @@ BATCHES = {
     "06-permutation": REMOTE / "2026-11-13_102950_bcb7193",
     "07-share-sweep": REMOTE / "2026-11-13_233502_3b9f2ea",
 }
-REPORT = common.ROOT / "docs" / "report"
+REPORT = common.ROOT / "report"
 FIGURES = REPORT / "figures"
 TABLES = REPORT / "tables"
 
