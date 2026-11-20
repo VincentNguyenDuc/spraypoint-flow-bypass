@@ -111,5 +111,4 @@ The simulator supports `uniform`, `permutation` (cyclic host-ID shift), `router-
 
 ## To do
 
-- **Run and pin the results.** Run the sweeps (`./REPRODUCE.sh`, or `./REMOTE.sh start` on the server), pin each sweep's batch in `experiments/analysis/report_figures.py`, and fill in the report's results.
 - **Count timeouts exactly.** Timeouts are now inferred from completion time and `data_retransmissions` (`experiments/analysis/common.py`). Per-flow TCP counters of data retransmission timer firings and SYN/SYN-ACK retries would make them exact and tell a timeout from a fast retransmit. Yusong implemented these in commit `4c6baaa` (`src/tcp/tcp-diagnostics.{h,cc}`, removed in `453fe48` so new runs match the existing batches); restoring them means rerunning the sweeps.
