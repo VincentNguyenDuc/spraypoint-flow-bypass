@@ -1,17 +1,10 @@
 \section{Background}
 \label{sec:background}
 
-\subsection{The RNG fabric}
-
-RNG connects $n$ ToR routers directly to each other, with no spine layer. Each router has $d$ fabric links, wired so that the graph behaves like a uniformly random $d$-regular graph, an \emph{expander}. In such a graph the number of routers within $k$ hops of any router grows like $d^k$, so with $n = 1000$ and $d = 64$ almost every pair is at most two hops apart. Our models use these defaults.
-
-\subsection{Spraypoint routing}
-
-Shortest-path routing on a random graph uses only a handful of the 64 links between two routers, so a large flow can't get much bandwidth. Spraypoint spreads each pair's traffic over almost all of them in two phases (\autoref{fig:rings}):
-
+RNG connects $n$ routers directly, with no spine layer, each with $d$ fabric links wired so the graph behaves like a uniformly random $d$-regular graph; at the paper's defaults, which our models use, $n = 1000$ and $d = 64$. Shortest paths on such a graph use only a handful of the $d$ links between two routers, so Spraypoint spreads each pair's traffic in two phases (\autoref{fig:rings}):
 \begin{enumerate}
-  \item \textbf{Spray.} The source router $s$ sends the flow to one of its $d$ neighbors, chosen by hashing (ECMP). This is always one hop, and it ignores the destination.
-  \item \textbf{Point.} For each destination $t$, routers are arranged in rings. WP0 holds $t$'s $d$ neighbors. WP1 holds the $p$ waypoints each WP0 router picks among its own neighbors ($p = 4$, so about $pd = 256$ routers). The inner ring (IR) holds every remaining router that touches WP1, and the outer ring (OR) the rest, which is almost empty at the paper's scale. Each router keeps $h = 2$ next hops in the next ring inward and splits traffic over them with ECMP, so traffic walks inward one ring per hop.
+  \item \textbf{Spray.} The source router $s$ hashes the flow to one of its $d$ neighbors, ignoring the destination.
+  \item \textbf{Point.} Around each destination $t$, routers form rings: WP0 holds $t$'s $d$ neighbors, WP1 the $p = 4$ waypoints each WP0 router picks among its neighbors, the inner ring (IR) every other router touching WP1, and the outer ring (OR) the rest, almost none. Each router splits traffic over $h = 2$ next hops in the next ring inward, so traffic walks inward one ring per hop.
 \end{enumerate}
 
 \begin{figure}[ht]
@@ -42,9 +35,9 @@ Shortest-path routing on a random graph uses only a handful of the 64 links betw
 \label{fig:rings}
 \end{figure}
 
-\paragraph{What the paper's models give.} The paper models Spraypoint on a random graph, where a router's neighbor is close to a uniformly random router (§7 and Appendices E--G of~\cite{rng}). We use three of its results.
+\paragraph{The paper's models.} On a random graph a router's neighbor is close to a uniformly random router, so the spray lands in a ring with probability that ring's size over $n$. We use three of the paper's results (§7 and Appendices E--G of~\cite{rng}).
 \begin{itemize}
-  \item \textbf{Path length} (Model 7.2). The hop count depends only on the ring the spray lands in, which it does with probability the ring's size over $n$:
+  \item \textbf{Path length} (Model 7.2). Most paths take 4 hops, because most routers are in IR:
 \begin{center}
 \small
 \begin{tabular}{@{}lccccc|c@{}}
@@ -55,16 +48,8 @@ Probability & 0.1\% & 6.4\% & 25.6\% & 67.9\% & $\approx 0$ & \textbf{3.61} \\
 \bottomrule
 \end{tabular}
 \end{center}
-  Most paths take 4 hops because most routers are in IR.
-  \item \textbf{Path diversity} (Model 7.1). In exchange, each pair gets about $d(1 - e^{-h}) \approx 55$ of a possible 64 edge-disjoint paths, and traffic reaches $t$ through many of its neighbors, which the paper calls high \emph{fan-in}.
-  \item \textbf{Throughput} (Model 7.3), below.
-\end{itemize}
-
-\subsection{Throughput: oversubscription}
-
-The paper measures throughput by \emph{oversubscription}. Under a given traffic pattern, it is $r$ if every router can send at least $1/r$ of its full rate (its $d$ links' worth) at the same time without overloading any link. The worst pattern is a \emph{permutation}, where every router sends at full rate to exactly one partner~\cite{namyar}. The paper computes $r$ for random permutations with a linear program (LP) that splits each pair's traffic over its Spraypoint paths in the best possible way, and reports $r = 3.25$ at its defaults.
-
-Model 7.3 approximates the LP by filling the shortest paths first. Let $\mu_i d$ be the rate, in links' worth, that $s$ can send to $t$ on $i$-hop paths; then $r = 1/\sumu$:
+  \item \textbf{Path diversity} (Model 7.1). In exchange, each pair gets about $d(1 - e^{-h}) \approx 55$ of a possible 64 edge-disjoint paths, and traffic reaches $t$ through many of its neighbors (high \emph{fan-in}).
+  \item \textbf{Throughput} (Model 7.3). The paper measures throughput by \emph{oversubscription} $r$: every router can send $1/r$ of its full rate at once without overloading any link. The worst case is a \emph{permutation}, where every router sends to one partner~\cite{namyar}, and the paper's LP, which splits each pair's traffic over its paths in the best way, gives $r = 3.25$. Model 7.3 approximates the LP by filling the shortest paths first. With $\mu_i d$ the rate, in links' worth, that $s$ can send to $t$ on $i$-hop paths, $r = 1/\sumu$:
 \begin{center}
 \small
 \begin{tabular}{@{}lccccc@{}}
@@ -76,6 +61,7 @@ Links' worth & 4.1 & 8.4 & 7.1 & 0 & \textbf{19.6} \\
 \bottomrule
 \end{tabular}
 \end{center}
-so $r \approx 3.27$.\footnote{The paper's printed $\mu_5$ formula uses the share of routers in IR where the share in OR is meant; we read it as a typo, and our implementation uses OR.} The $\mu_2$ paths are the 2-hop paths $s \to \text{WP0} \to t$, about $d^2/n = 4.1$ per pair, which are also the pair's shortest paths.
+  so $r \approx 3.27$.\footnote{The paper's printed $\mu_5$ formula uses the share of routers in IR where the share in OR is meant; we read it as a typo, and our implementation uses OR.} The $\mu_2$ paths, $s \to \text{WP0} \to t$, about $d^2/n = 4.1$ per pair, are also the pair's shortest paths.
+\end{itemize}
 
-The best split is a bound. Switches split traffic \emph{evenly} over their next hops, by hashing each flow (ECMP), so we model the bypass under both (\secref{sec:models}).
+The best split is a bound: switches split traffic \emph{evenly} over their next hops (ECMP), so we model the bypass under both (\secref{sec:models}).

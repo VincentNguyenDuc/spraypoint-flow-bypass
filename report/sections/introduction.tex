@@ -1,20 +1,18 @@
 \section{Introduction}
 \label{sec:intro}
 
-RNG~\cite{rng} replaces the layered fat tree with a single layer of top-of-rack (ToR) routers wired as a random graph. Each router has $d$ links to other routers ($d = 64$ in the paper), and a 1{,}000-router fabric connects 64{,}000 servers with 45\% fewer switches than a comparable fat tree. Its routing protocol, Spraypoint, makes such a graph usable on commodity switches: the first router \emph{sprays} each flow to a random neighbor, and from there every router \emph{points} it toward the destination through a set of rings. This gives each pair of racks dozens of independent paths and spreads load across the whole fabric.
+RNG~\cite{rng} builds a datacenter fabric as a single layer of top-of-rack routers wired as a random graph. Its routing protocol, Spraypoint, sprays each flow to a random neighbor before pointing it at the destination, which spreads every pair's traffic over dozens of paths. That suits throughput, but much datacenter traffic is small and latency-sensitive (RPCs, key-value lookups, control messages), and for it what matters is the tail of the flow completion time (FCT). Spraying sends even a message between two directly connected racks over three or four hops, and each hop is another queue to wait in and another place to be dropped.
 
-Spraying is tuned for throughput. Much datacenter traffic, though, is small and latency-sensitive: RPCs, key-value lookups, control messages. For these, what matters is the tail of the flow completion time (FCT), not bandwidth, and spraying has a cost. A message between two directly connected racks reaches the destination's neighbor only once in $d$ sprays, so it usually takes three or four hops instead of one. Every extra hop is another queue to wait in and another place to be dropped.
-
-This project asks whether a simple change helps: let small flows skip the spray and take the shortest path. The paper itself warns against shortest paths between neighbors, because they concentrate traffic on direct links. So the question is a trade-off:
+We test a \emph{bypass} that lets small flows skip the spray and take a shortest path, which the paper warns concentrates traffic on direct links:
 
 \begin{quote}
-\emph{On an RNG fabric, does routing small flows on shortest paths, instead of spraying them, reduce their tail latency? What does it cost the rest of the traffic, and when does the cost outweigh the gain?}
+\emph{On an RNG fabric, does routing small flows on shortest paths reduce their tail latency? What does it cost the rest of the traffic, and when does the cost outweigh the gain?}
 \end{quote}
 
-We test four hypotheses, after extending the paper's analytical models to the bypass (\secref{sec:models}):
+We answer with an ns-3 simulation, flow-level computations at the paper's scale, and the paper's analytical models extended to the bypass (\secref{sec:models}), testing four hypotheses:
 \begin{description}[leftmargin=2.5em,style=nextline]
-  \item[H1 (latency)] For small flows between neighboring routers, the bypass cuts the FCT tail, because they cross one queue instead of two to five (\secref{sec:h1}).
-  \item[H2 (no free lunch)] At low small-flow volume, other traffic barely notices. As the small flows' share of bytes or the load grows, direct links become hotspots, and past a crossover the bypass makes things worse (\secref{sec:h2-uniform} and \secref{sec:h2-perm}).
-  \item[H3 (reach)] Only about $d/(n-1)$ of router pairs are neighbors, so to reach most small flows the bypass must cover every pair, on shortest paths. That raises the hotspot risk (\secref{sec:h3}).
-  \item[H4 (overhead)] The bypass costs a switch one extra table lookup, negligible next to queueing. We argue this from the switch pipeline but do not measure it (\secref{sec:bypass}).
+  \item[H1 (latency)] The bypass cuts small flows' FCT tail, most between neighbors, which cross one queue instead of two to five (\secref{sec:h1}).
+  \item[H2 (no free lunch)] Other traffic barely notices at low small-flow volume, but as the small flows' share of bytes or the load grows, direct links become hotspots and past a crossover the bypass makes things worse (\secref{sec:h2-uniform}, \secref{sec:h2-perm}).
+  \item[H3 (reach)] Only about $d/(n-1)$ of router pairs are neighbors, so reaching most small flows means covering every pair, which raises the hotspot risk (\secref{sec:h3}).
+  \item[H4 (overhead)] A switch pays one extra table lookup, negligible next to queueing; we argue this but do not measure it (\secref{sec:bypass}).
 \end{description}
