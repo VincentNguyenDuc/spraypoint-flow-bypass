@@ -11,22 +11,10 @@ This project asks whether a simple change helps: let small flows skip the spray 
 \emph{On an RNG fabric, does routing small flows on shortest paths, instead of spraying them, reduce their tail latency? What does it cost the rest of the traffic, and when does the cost outweigh the gain?}
 \end{quote}
 
-Our proposal stated four hypotheses:
+We test four hypotheses, after extending the paper's analytical models to the bypass (\secref{sec:models}):
 \begin{description}[leftmargin=2.5em,style=nextline]
-  \item[H1 (latency)] For small flows between neighboring routers, the bypass cuts the FCT tail, because they cross one queue instead of two to five.
-  \item[H2 (no free lunch)] At low small-flow volume, other traffic barely notices. As the small flows' share of bytes or the load grows, direct links become hotspots, and past a crossover the bypass makes things worse.
-  \item[H3 (reach)] Only about $d/(n-1)$ of router pairs are neighbors (6.4\% at the paper's scale), so to reach most small flows the bypass must cover every pair, on shortest paths. That raises the hotspot risk.
-  \item[H4 (overhead)] The bypass costs a switch one extra table lookup, negligible next to queueing.
+  \item[H1 (latency)] For small flows between neighboring routers, the bypass cuts the FCT tail, because they cross one queue instead of two to five (\secref{sec:h1}).
+  \item[H2 (no free lunch)] At low small-flow volume, other traffic barely notices. As the small flows' share of bytes or the load grows, direct links become hotspots, and past a crossover the bypass makes things worse (\secref{sec:h2-uniform} and \secref{sec:h2-perm}).
+  \item[H3 (reach)] Only about $d/(n-1)$ of router pairs are neighbors, so to reach most small flows the bypass must cover every pair, on shortest paths. That raises the hotspot risk (\secref{sec:h3}).
+  \item[H4 (overhead)] The bypass costs a switch one extra table lookup, negligible next to queueing. We argue this from the switch pipeline but do not measure it (\secref{sec:bypass}).
 \end{description}
-
-\paragraph{Where each hypothesis is tested.}
-\begin{itemize}
-  \item \textbf{H1}: small-flow latency under uniform traffic (\secref{sec:h1}).
-  \item \textbf{H2}: the cost to other traffic, under uniform traffic (\secref{sec:h2-uniform}) and under worst-case traffic (\secref{sec:h2-perm}).
-  \item \textbf{H3}: small flows between non-neighbors (\secref{sec:h3}).
-  \item \textbf{Models}: the paper's analytical models, extended to the bypass, against the simulation (\secref{sec:models-vs-sim}).
-  \item \textbf{H4}: argued from the switch pipeline, not measured (\secref{sec:h4}).
-\end{itemize}
-
-\paragraph{Roadmap.}
-\secref{sec:background} explains RNG and Spraypoint for a reader new to them, and \secref{sec:bypass} defines the bypass. \secref{sec:method} describes how we measure: the simulator, the traffic, the metrics, and a flow-level checker. \secref{sec:models} extends the paper's models to the bypass. \secref{sec:results} presents the results in the order the project found them, \secref{sec:discussion} turns them into a policy, and \secref{sec:conclusion} concludes. The appendices hold the full model derivations, the validation of our Spraypoint implementation, and how to reproduce every number.

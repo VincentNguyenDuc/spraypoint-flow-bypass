@@ -3,7 +3,7 @@
 
 \subsection{The RNG fabric}
 
-RNG connects $n$ ToR routers directly to each other, with no spine layer. Each router has $d$ fabric links, wired so that the graph behaves like a uniformly random $d$-regular graph, an \emph{expander}. In such a graph the number of routers within $k$ hops of any router grows like $d^k$, so with $n = 1000$ and $d = 64$ almost every pair is at most two hops apart. The paper's defaults, which we also use for modelling, are $n = 1000$ routers of degree $d = 64$.
+RNG connects $n$ ToR routers directly to each other, with no spine layer. Each router has $d$ fabric links, wired so that the graph behaves like a uniformly random $d$-regular graph, an \emph{expander}. In such a graph the number of routers within $k$ hops of any router grows like $d^k$, so with $n = 1000$ and $d = 64$ almost every pair is at most two hops apart. Our models use these defaults.
 
 \subsection{Spraypoint routing}
 
@@ -42,10 +42,40 @@ Shortest-path routing on a random graph uses only a handful of the 64 links betw
 \label{fig:rings}
 \end{figure}
 
-Because most routers sit in the inner ring, most sprayed flows take four hops: the paper's model gives a mean of 3.61 hops and at most 5. In exchange, each pair gets about 55 of a possible 64 edge-disjoint paths, and traffic reaches $t$ through many of its neighbors, which the paper calls high \emph{fan-in}. The full models are in \secref{sec:models}.
+\paragraph{What the paper's models give.} The paper models Spraypoint on a random graph, where a router's neighbor is close to a uniformly random router (§7 and Appendices E--G of~\cite{rng}). We use three of its results.
+\begin{itemize}
+  \item \textbf{Path length} (Model 7.2). The hop count depends only on the ring the spray lands in, which it does with probability the ring's size over $n$:
+\begin{center}
+\small
+\begin{tabular}{@{}lccccc|c@{}}
+\toprule
+Spray lands in & $t$ & WP0 & WP1 & IR & OR & \\
+Hops & 1 & 2 & 3 & 4 & 5 & Mean \\
+Probability & 0.1\% & 6.4\% & 25.6\% & 67.9\% & $\approx 0$ & \textbf{3.61} \\
+\bottomrule
+\end{tabular}
+\end{center}
+  Most paths take 4 hops because most routers are in IR.
+  \item \textbf{Path diversity} (Model 7.1). In exchange, each pair gets about $d(1 - e^{-h}) \approx 55$ of a possible 64 edge-disjoint paths, and traffic reaches $t$ through many of its neighbors, which the paper calls high \emph{fan-in}.
+  \item \textbf{Throughput} (Model 7.3), below.
+\end{itemize}
 
 \subsection{Throughput: oversubscription}
 
 The paper measures throughput by \emph{oversubscription}. Under a given traffic pattern, it is $r$ if every router can send at least $1/r$ of its full rate (its $d$ links' worth) at the same time without overloading any link. The worst pattern is a \emph{permutation}, where every router sends at full rate to exactly one partner~\cite{namyar}. The paper computes $r$ for random permutations with a linear program (LP) that splits each pair's traffic over its Spraypoint paths in the best possible way, and reports $r = 3.25$ at its defaults.
+
+Model 7.3 approximates the LP by filling the shortest paths first. Let $\mu_i d$ be the rate, in links' worth, that $s$ can send to $t$ on $i$-hop paths; then $r = 1/\sumu$:
+\begin{center}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+& $\mu_2$ & $\mu_3$ & $\mu_4$ & $\mu_5$ & Sum \\
+\midrule
+Value & 0.064 & 0.131 & 0.111 & $\approx 0$ & \textbf{0.306} \\
+Links' worth & 4.1 & 8.4 & 7.1 & 0 & \textbf{19.6} \\
+\bottomrule
+\end{tabular}
+\end{center}
+so $r \approx 3.27$.\footnote{The paper's printed $\mu_5$ formula uses the share of routers in IR where the share in OR is meant; we read it as a typo, and our implementation uses OR.} The $\mu_2$ paths are the 2-hop paths $s \to \text{WP0} \to t$, about $d^2/n = 4.1$ per pair, which are also the pair's shortest paths.
 
 The best split is a bound. Switches split traffic \emph{evenly} over their next hops, by hashing each flow (ECMP), so we model the bypass under both (\secref{sec:models}).

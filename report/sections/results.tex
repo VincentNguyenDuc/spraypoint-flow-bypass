@@ -1,8 +1,6 @@
 \section{Results}
 \label{sec:results}
 
-We present the results in the order the project found them: first the latency gain under realistic traffic, then the search for a cost under uniform traffic, then worst-case traffic, and finally how well the models predicted what we measured.
-
 \subsection{H1: the bypass cuts small-flow latency}
 \label{sec:h1}
 
@@ -18,7 +16,7 @@ Only a small share of small flows run between neighboring routers. We measure ho
 \subsection{H2 under uniform traffic}
 \label{sec:h2-uniform}
 
-We look for a cost to other traffic in every measure from \secref{sec:method}: large-flow goodput, link utilization and drops, the links the bypass loads most, and fan-in. \file{07-share-sweep} then raises the small flows' share of bytes $f$, at higher loads, to see whether a cost appears, and the workload sweeps (\appref{app:workloads}) push further: \file{08-small-fraction} and \file{09-small-size} raise $f$ to 50\%, and \file{10-websearch} and \file{11-hadoop} run published flow-size distributions at several small-flow cutoffs.
+We look for a cost to other traffic in every measure of \secref{sec:method}. \file{07-share-sweep} then raises the small flows' share of bytes $f$, at higher loads, to see whether a cost appears, and the workload sweeps push further: \file{08-small-fraction} and \file{09-small-size} raise $f$ to 50\%, and \file{10-websearch} and \file{11-hadoop} run published flow-size distributions at several small-flow cutoffs.
 
 \subsection{H2 under worst-case traffic: the crossover}
 \label{sec:h2-perm}
@@ -37,5 +35,3 @@ The models (\secref{sec:models}) say the bypass's cost appears only when single 
 \paragraph{Flow level.} The flow-level checker's worst-case throughput with the bypass, against the best-split and ECMP models, at both scales.
 
 \paragraph{ns-3.} The worst pair's throughput kept in the simulation, against the ECMP model's prediction for the same permutation, at each load.
-
-\paragraph{What the models miss.} The models are fluid and have no queues, so they predict throughput, not latency.

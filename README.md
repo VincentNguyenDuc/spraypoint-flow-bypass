@@ -9,7 +9,7 @@ The repository has four programs:
 - **TCP experiment** (`tcp-experiment`): an ns-3 simulation measuring flow completion times under default Spraypoint.
 - **TCP bypass** (`tcp-bypass`): the same simulation with the small-flow bypass on shortest paths between all routers (`--bypass=shortest`). It also supports `--bypass=adjacent`, the direct link between neighboring routers only, which the report sets aside (Section 3) and the experiments no longer run.
 
-**Start with the report, [report/report.pdf](report/report.pdf)**: it explains the project from the beginning, the models, and how to reproduce the results; its appendices cover the simulator's traffic patterns and what each run records, the workload sweeps, and the bypass in a switch pipeline. Rebuild it with `latexmk` in `report/`.
+**Start with the report, [report/report.pdf](report/report.pdf)**: it explains the project from the beginning and the models. Rebuild it with `latexmk` in `report/`.
 
 The first CMake configure downloads, builds, and installs the pinned official ns-3 under `third_party/`, which takes several minutes and happens once.
 
@@ -28,7 +28,7 @@ flowchart TD
 ```
 
 - **Spraypoint core (`src/spraypoint/`):** builds the random router graph and the spray and pointing tables. It answers one question, "which neighbor is next?", and knows nothing about packets or ns-3.
-- **TCP experiment (`src/tcp/`):** connects the core to ns-3. It builds the network, runs TCP flows over it, and records the results: `traffic-pattern` picks each flow's endpoints (report, Appendix B).
+- **TCP experiment (`src/tcp/`):** connects the core to ns-3. It builds the network, runs TCP flows over it, and records the results: `traffic-pattern` picks each flow's endpoints.
 - **TCP bypass (`src/tcp-bypass/`):** the same experiment, except that small flows can skip the spray step. It adds only that routing decision, through the two extension points the TCP experiment offers: `TcpExperiment::CreateRouting` picks each router's routing, and `SpraypointRouting::SelectNextHop` picks a packet's next hop. A new routing variant can follow the same pattern as a separate program.
 - **Tests (`test/`):** one folder per test. The verifier compares the core with the paper, without ns-3; `bypass-model` checks the bypass's models on the same tables, and its output is experiment data (`05-bypass-model`).
 - **Experiments (`experiments/`):** one script per experiment; see below.
@@ -62,8 +62,8 @@ Unless a note says otherwise, a run has 256 routers of degree 16 with 4 hosts ea
 | `07-share-sweep` | H2 with more bytes in small flows | uniform | f 8.3, 20, 30%; load 0.5, 0.7 | 561–563 | the same small-flow sizes as `06` |
 | `08-small-fraction` | H2 with more of the flows small | uniform | 95% or 99% small flows (f 16%, 50%); load 0.3–0.7 | 561–563 | 99% runs at load 0.3 only: about 10 GB per run there, more at higher loads |
 | `09-small-size` | H2 with larger small flows | uniform | 50 or 100 KB small flows (f 31%, 47%); load 0.3–0.7 | 561–563 | a flow counts as small up to its small size |
-| `10-websearch` | H2 on a published workload | uniform | small-flow cutoff 10 KB, 100 KB, 1 MB; load 0.3–0.7 | 561–563 | WebSearch flow sizes (report, Appendix C) |
-| `11-hadoop` | H2 on a published workload | uniform | the same cutoffs; load 0.3–0.7 | 561–563 | Hadoop flow sizes (report, Appendix C) |
+| `10-websearch` | H2 on a published workload | uniform | small-flow cutoff 10 KB, 100 KB, 1 MB; load 0.3–0.7 | 561–563 | WebSearch flow sizes |
+| `11-hadoop` | H2 on a published workload | uniform | the same cutoffs; load 0.3–0.7 | 561–563 | Hadoop flow sizes |
 
 Results are not committed. The report's figures and tables come from `experiments/analysis/report_figures.py`, which reads the batches pinned in it; none are pinned yet, so the report has no results until the sweeps are run and pinned.
 
@@ -107,7 +107,7 @@ cmake --build build --target format            # format the C++ code before comm
 - **Add a test:** create `test/<name>/` with a `CMakeLists.txt`, and add it to `test/CMakeLists.txt`.
 - **Run with other settings:** pass options to a program in `build/bin/`. `--PrintHelp` lists the options of `tcp-experiment` and `tcp-bypass`, and `--help` lists those of `spraypoint-verifier` and `bypass-model`.
 
-The simulator supports `uniform`, `permutation` (cyclic host-ID shift), `router-permutation` (seeded router partners), `hotspot`, and `incast` traffic. Each run's `flows.csv` records every flow's endpoints, size, start and finish times and data retransmissions, and `links.csv` records each port's load and drops. The report's Appendix B describes both.
+The simulator supports `uniform`, `permutation` (cyclic host-ID shift), `router-permutation` (seeded router partners), `hotspot`, and `incast` traffic. Each run's `flows.csv` records every flow's endpoints, size, start and finish times and data retransmissions, and `links.csv` records each port's load and drops.
 
 ## To do
 

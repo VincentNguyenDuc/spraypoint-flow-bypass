@@ -1,22 +1,22 @@
 \section{Methodology}
 \label{sec:method}
 
-We use two tools. A packet-level \textbf{ns-3 simulation}~\cite{ns3} measures latency and throughput with real queues and TCP; following feedback on our proposal, we simulate the fabric rather than emulate it in Mininet, which the question does not need. A \textbf{flow-level checker} computes path lengths, path counts and worst-case throughput directly from the routing tables, without packets, at both our scale and the paper's. Both use the same Spraypoint implementation (\file{src/spraypoint/}), which we first validated against the paper (\secref{sec:validation}).
+We use two tools. A packet-level \textbf{ns-3 simulation}~\cite{ns3} measures latency and throughput with real queues and TCP. A \textbf{flow-level checker} computes path lengths, path counts and worst-case throughput directly from the routing tables, without packets, at both our scale and the paper's. Both use the same Spraypoint implementation (\file{src/spraypoint/}), which we first validated against the paper's routing rules, path lengths, edge-disjoint paths and oversubscription, at both scales, with \file{spraypoint-verifier}.
 
 \subsection{Simulated network}
 
-The simulated fabric has $n = 256$ routers of degree $d = 16$, each with 4 hosts. The paper's 1{,}000-router fabric is too large to simulate at packet level for many runs. The smaller network keeps the paper's path-length distribution and its share of neighboring router pairs (6\%), and with 4 hosts per router the fabric's utilization roughly equals the offered load. One property does change: $d^2/n$, the expected number of common neighbors of two routers, is 1 instead of 4.1, so many more pairs have a single shortest path. This matters for the bypass's cost (\secref{sec:models-scale}).
+The simulated fabric has $n = 256$ routers of degree $d = 16$, each with 4 hosts. The paper's 1{,}000-router fabric is too large to simulate at packet level for many runs. The smaller network keeps the paper's path-length distribution and its share of neighboring router pairs (6\%), but not its number of shortest paths per pair (\secref{sec:models-scale}). With 4 hosts per router the fabric's utilization roughly equals the offered load.
 
 Links run at 100\,Gbps with 500\,ns of propagation delay. Router queues hold 100 packets and host queues 1{,}000, and both drop packets when full, with no ECN. TCP uses 1{,}448-byte segments, a 1\,ms minimum retransmission timeout (RTO), immediate ACKs, and a 10\,ms connection timeout. Every flow opens its own connection.
 
 \subsection{Traffic}
 
-Flows arrive as a Poisson process for 4\,ms. The \emph{offered load} is the fraction of the hosts' link capacity they ask for. 90\% of flows are 10\,KB (small) and 10\% are 1\,MB (large), so small flows are most flows but carry only $f = 8.3\%$ of the bytes. Here $f$, the small flows' share of bytes, is the quantity that sets the bypass's cost. Two experiments raise $f$ to 20\% and 30\% by making small flows 27.8 and 47.6\,KB.
+Flows arrive as a Poisson process for 4\,ms. The \emph{offered load} is the fraction of the hosts' link capacity they ask for. 90\% of flows are 10\,KB (small) and 10\% are 1\,MB (large), so small flows are most flows but carry only $f = 8.3\%$ of the bytes. Here $f$, the small flows' share of bytes, is the quantity that sets the bypass's cost; several sweeps raise it (\autoref{tab:sweeps}).
 
 Flows go between hosts in one of two patterns:
 \begin{itemize}
   \item \textbf{Uniform:} source and destination hosts are drawn at random. This is the realistic case, and the one most of our sweeps use.
-  \item \textbf{Permutation:} every router's hosts send only to the hosts of one partner router, drawn as a random permutation. This is the worst case for throughput~\cite{namyar}, and the case the models describe. \appref{app:simulator} describes these and the simulator's other traffic patterns. The permutation is the same one the flow-level checker uses as its first permutation for the same seed, so simulated pairs line up with predicted ones.
+  \item \textbf{Permutation:} every router's hosts send only to the hosts of one partner router, drawn as a random permutation. This is the worst case for throughput~\cite{namyar}, and the case the models describe. It is the flow-level checker's first permutation for the same seed, so simulated pairs line up with predicted ones.
 \end{itemize}
 
 \subsection{Experiments}
@@ -37,7 +37,7 @@ Experiment & Traffic & Network & What varies \\
 \file{07-share-sweep} & uniform & as \file{03} & $f$ = 8.3, 20, 30\%; load 0.5, 0.7 \\
 \file{08-small-fraction} & uniform & as \file{03} & 95, 99\% small flows ($f$ = 16, 50\%); load 0.3--0.7 \\
 \file{09-small-size} & uniform & as \file{03} & 50, 100\,KB small flows ($f$ = 31, 47\%); load 0.3--0.7 \\
-\file{10-websearch}, \file{11-hadoop} & uniform & as \file{03} & published flow sizes, cutoff 10\,KB--1\,MB; load 0.3--0.7 (\appref{app:workloads}) \\
+\file{10-websearch}, \file{11-hadoop} & uniform & as \file{03} & published flow sizes, cutoff 10\,KB--1\,MB; load 0.3--0.7 \\
 \bottomrule
 \end{tabularx}
 \caption{Experiments. All ns-3 sweeps run with no bypass and with the shortest-path bypass.}
@@ -46,7 +46,7 @@ Experiment & Traffic & Network & What varies \\
 
 \subsection{Metrics}
 
-\paragraph{Small-flow latency.} The \textbf{median} completion time, the \textbf{timeout rate} (the share of small flows that waited for any retransmission or connection timeout, inferred from completion time and retransmissions; \appref{app:simulator}), and the \textbf{clean p99} (the p99 of flows that did not, which is queueing alone).
+\paragraph{Small-flow latency.} The \textbf{median} completion time, the \textbf{timeout rate} (the share of small flows that waited for any retransmission or connection timeout, inferred as a flow that took at least the 1\,ms minimum RTO and retransmitted data, or at least the 10\,ms connection timeout), and the \textbf{clean p99} (the p99 of flows that did not, which is queueing alone).
 
 \paragraph{Cost to other traffic.} Each large flow's \textbf{goodput}, its bytes over its completion time: the mean and the slowest 1\%. Under permutation traffic, the \textbf{throughput kept} per router pair, its large-flow goodput with the bypass over the same pair's without it, and its minimum over pairs, the \textbf{worst pair}.
 
@@ -61,8 +61,3 @@ Experiment & Traffic & Network & What varies \\
   \item \textbf{Best split:} solve the paper's multi-commodity flow LP with the Garg--K\"onemann algorithm~\cite{gargkonemann}, extended so that each pair's bypassed bytes may only use its shortest paths. The solver returns a bracket about 5\% wide; we use its middle.
 \end{itemize}
 It runs 10 permutations for each of 3 seeds at both scales, and writes its measurements next to each model's prediction.
-
-\subsection{Validating the baseline}
-\label{sec:validation}
-
-Before testing the bypass, we checked that our Spraypoint matches the paper (\appref{app:validation}): the routing rules of the paper's §5, forwarding loops, the path-length distribution, edge-disjoint paths, and oversubscription, at the paper's scale and at ours.
